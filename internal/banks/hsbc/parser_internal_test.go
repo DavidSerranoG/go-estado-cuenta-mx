@@ -79,3 +79,65 @@ func TestParseSplitOCRCardTransactionAcceptsSplitSignAndAmountLines(t *testing.T
 		t.Fatalf("unexpected posted date %v", tx.PostedAt)
 	}
 }
+
+func TestParseCardPeriodAcceptsOCRMonthDigits(t *testing.T) {
+	t.Parallel()
+
+	start, end, err := parseCardPeriod("a) Periodo:\n13-0ct-2025 al 12-Nov-2025")
+	if err != nil {
+		t.Fatalf("parse card period: %v", err)
+	}
+	if !start.Equal(time.Date(2025, 10, 13, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected start %v", start)
+	}
+	if !end.Equal(time.Date(2025, 11, 12, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected end %v", end)
+	}
+}
+
+func TestParseFlexiblePeriodAcceptsSlashDates(t *testing.T) {
+	t.Parallel()
+
+	start, end, err := parseFlexiblePeriod("Período de 01/11/2025 al 30/11/2025")
+	if err != nil {
+		t.Fatalf("parse flexible period: %v", err)
+	}
+	if !start.Equal(time.Date(2025, 11, 1, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected start %v", start)
+	}
+	if !end.Equal(time.Date(2025, 11, 30, 0, 0, 0, 0, time.UTC)) {
+		t.Fatalf("unexpected end %v", end)
+	}
+}
+
+func TestHSBCDetectionScoreAcceptsFlexibleSlashPeriods(t *testing.T) {
+	t.Parallel()
+
+	text := `HSBC
+CUENTA FLEXIBLE
+Período de 01/11/2025 al 30/11/2025
+DETALLE MOVIMIENTOS CUENTA FLEXIBLE No. 6529009644
+18 AMI CUENTA HSBC`
+
+	if score := hsbcDetectionScore(text); score <= 0 {
+		t.Fatalf("expected positive HSBC score, got %d", score)
+	}
+}
+
+func TestParseFlexibleInitialBalanceAcceptsOCRColumnReflow(t *testing.T) {
+	t.Parallel()
+
+	value, err := parseFlexibleInitialBalance(`RESUMEN DE CUENTAS
+Saldo Inicial del
+$ 7,595.73
+FRACC REAL DEL MONTE
+Periodo
+Depósitos/
+$ 25,000.00`)
+	if err != nil {
+		t.Fatalf("parse flexible initial balance: %v", err)
+	}
+	if value != 759573 {
+		t.Fatalf("unexpected initial balance %d", value)
+	}
+}

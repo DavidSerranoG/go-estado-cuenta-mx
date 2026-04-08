@@ -120,6 +120,37 @@ func TestParseFlexibleStatementAcceptsNumericReferenceHeaders(t *testing.T) {
 	}
 }
 
+func TestParseOCRLikeFlexibleStatement(t *testing.T) {
+	t.Parallel()
+
+	parser := hsbc.New()
+
+	result, err := parser.ParseResult(ocrLikeFlexibleText)
+	if err != nil {
+		t.Fatalf("parse ocr-like flexible statement: %v", err)
+	}
+	statement := result.Statement
+
+	if len(statement.Transactions) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(statement.Transactions))
+	}
+	if statement.Transactions[0].Kind != "credit" {
+		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Kind)
+	}
+	if statement.Transactions[0].AmountCents != 2500000 {
+		t.Fatalf("unexpected first amount %d", statement.Transactions[0].AmountCents)
+	}
+	if statement.Transactions[1].Kind != "debit" {
+		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Kind)
+	}
+	if statement.Transactions[1].AmountCents != 1935542 {
+		t.Fatalf("unexpected second amount %d", statement.Transactions[1].AmountCents)
+	}
+	if statement.Transactions[1].Reference == "" {
+		t.Fatalf("expected flexible OCR reference to be preserved")
+	}
+}
+
 func TestParseOCRLikeCardStatement(t *testing.T) {
 	t.Parallel()
 
@@ -303,6 +334,36 @@ SerialRetiroCargoDepósitoAbonoSaldo
 308379
 $ 37,000.00 $ 49,587.37
 Saldo Inicial $           12,587.37`
+
+const ocrLikeFlexibleText = `CUENTA FLEXIBLE
+Estado de Cuenta
+HSBC
+RESUMEN DE CUENTAS
+Saldo Inicial del
+$ 7,595.73
+Periodo
+Período de 01/11/2025 al 30/11/2025
+DETALLE MOVIMIENTOS CUENTA FLEXIBLE No. 6529009644
+Referencia/
+Dia
+Descripcion
+Serial
+Retiro/Cargo
+Deposito/Abono
+Saldo
+18 AMI CUENTA HSBC
+0811250
+08045211
+$ 25,000.00
+$ 32,595.73
+1704487
+18 PAGO DE TARJETA: 547074981 1846577 EN BPI
+13655983
+$ 19,355.42
+$ 13,240.31
+41234
+CoDi: Operacion procesada por CoDi®
+Saldo Final $13,240.31`
 
 const ocrLikeCardText = `HSBC 2Now Categoria: Oro
 Numero de cuenta: 5470 7498 1184 6577

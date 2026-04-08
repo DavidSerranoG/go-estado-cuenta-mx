@@ -14,16 +14,19 @@ import (
 
 var (
 	cardAccountPattern     = regexp.MustCompile(`(?i)n[úu]mero\s*de\s*cuenta:?\s*([0-9 ]{16,})`)
-	cardPeriodPattern      = regexp.MustCompile(`(?i)([0-9]{2}-[a-z]{3,4}-[0-9]{4})\s*al\s*([0-9]{2}-[a-z]{3,4}-[0-9]{4})`)
-	cardFullTxPattern      = regexp.MustCompile(`^([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*(.+?)([+-])\s*\$\s*([0-9,]+\.\d{2})$`)
-	cardOpenTxPattern      = regexp.MustCompile(`^([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*(.+)$`)
+	cardPeriodPattern      = regexp.MustCompile(`(?i)([0-9]{2}-[a-z0-9]{3,4}-[0-9]{4})\s*al\s*([0-9]{2}-[a-z0-9]{3,4}-[0-9]{4})`)
+	cardFullTxPattern      = regexp.MustCompile(`^([0-9]{2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s*([0-9]{2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s*(.+?)([+-])\s*\$\s*([0-9,]+\.\d{2})$`)
+	cardOpenTxPattern      = regexp.MustCompile(`^([0-9]{2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s*([0-9]{2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s*(.+)$`)
 	cardAmountPattern      = regexp.MustCompile(`(.+?)([+-])\s*\$\s*([0-9,]+\.\d{2})$`)
-	cardOCRLinePattern     = regexp.MustCompile(`^([0-9A-Za-z]{1,2}-[A-Za-z]{3,4}-[0-9]{4})\s+([0-9A-Za-z]{1,2}-[A-Za-z]{3,4}-[0-9]{4})\s+(.+)$`)
+	cardOCRLinePattern     = regexp.MustCompile(`^([0-9A-Za-z]{1,2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s+([0-9A-Za-z]{1,2}-[A-Za-z0-9]{3,4}-[0-9]{4})\s+(.+)$`)
 	cardOCRAmountPattern   = regexp.MustCompile(`\s*([+-])?\s*\$?\s*([0-9][0-9, ]*(?:\.[0-9]{2}|,[0-9]{2}| [0-9]{2}))\s*$`)
 	cardOCRFXPattern       = regexp.MustCompile(`(?i)moneda extranjera:\s*([0-9]+(?:[.,][0-9]{2})?)\s*usd\s*tc:\s*([0-9]+(?:[.,][0-9]{1,4})?)`)
 	flexibleAccountPattern = regexp.MustCompile(`(?i)detalle movimientos cuenta flexible no\.\s*([0-9]{10})`)
-	flexiblePeriodPattern  = regexp.MustCompile(`(?i)per[íi]odo del\s*([0-9]{8})\s*al\s*([0-9]{8})`)
+	flexiblePeriodPattern  = regexp.MustCompile(`(?i)per[íi]odo(?:\s+de(?:l)?)?\s*([0-9]{8}|[0-9]{2}\s*/\s*[0-9]{2}\s*/\s*[0-9]{4})\s*al\s*([0-9]{8}|[0-9]{2}\s*/\s*[0-9]{2}\s*/\s*[0-9]{4})`)
 	flexibleInitialPattern = regexp.MustCompile(`(?is)saldo inicial del\s*periodo\s*\$\s*([0-9,]+\.\d{2})`)
+	flexibleClosingPattern = regexp.MustCompile(`(?i)saldo final\s*\$\s*([0-9,]+\.\d{2})`)
+	flexibleMoneyPattern   = regexp.MustCompile(`\$\s*([0-9,]+\.\d{2})`)
+	flexibleSingleAmount   = regexp.MustCompile(`^\$\s*([0-9,]+\.\d{2})$`)
 	flexibleAmountPattern  = regexp.MustCompile(`^\$\s*([0-9,]+\.\d{2})\s+\$\s*([0-9,]+\.\d{2})$`)
 	flexibleHeaderPattern  = regexp.MustCompile(`^\s*(.+?)\s{2,}([A-Z0-9]+)\s*$`)
 	flexibleRefPattern     = regexp.MustCompile(`^(.*)\s+([A-Z0-9]{8,})$`)
@@ -951,11 +954,11 @@ func parseFlexiblePeriod(text string) (time.Time, time.Time, error) {
 		return time.Time{}, time.Time{}, fmt.Errorf("hsbc: period not found")
 	}
 
-	start, err := parseCompactDate(match[1])
+	start, err := parseFlexiblePeriodDate(match[1])
 	if err != nil {
 		return time.Time{}, time.Time{}, err
 	}
-	end, err := parseCompactDate(match[2])
+	end, err := parseFlexiblePeriodDate(match[2])
 	if err != nil {
 		return time.Time{}, time.Time{}, err
 	}
@@ -966,6 +969,31 @@ func parseFlexiblePeriod(text string) (time.Time, time.Time, error) {
 func parseFlexibleInitialBalance(text string) (int64, error) {
 	match := flexibleInitialPattern.FindStringSubmatch(text)
 	if len(match) != 2 {
+		lines := strings.Split(text, "\n")
+		for i, rawLine := range lines {
+			line := normalize.CollapseWhitespace(rawLine)
+			if !strings.Contains(strings.ToUpper(line), "SALDO INICIAL DEL") {
+				continue
+			}
+
+			window := line
+			nonEmpty := 0
+			for j := i + 1; j < len(lines) && nonEmpty < 6; j++ {
+				next := normalize.CollapseWhitespace(lines[j])
+				if next == "" {
+					continue
+				}
+
+				window = normalize.CollapseWhitespace(window + " " + next)
+				nonEmpty++
+			}
+
+			money := flexibleMoneyPattern.FindStringSubmatch(window)
+			if len(money) == 2 {
+				return normalize.ParseMoneyToCents(money[1])
+			}
+		}
+
 		return 0, fmt.Errorf("hsbc: initial balance not found")
 	}
 
@@ -1012,8 +1040,10 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 		}
 
 		var (
-			serial          string
-			amountLine      string
+			serials         []string
+			amountCents     int64
+			balanceCents    int64
+			amountFound     bool
 			stoppedByMarker bool
 			ignored         bool
 		)
@@ -1027,13 +1057,21 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 				i = j - 1
 				break
 			}
-			if flexibleAmountPattern.MatchString(next) {
-				amountLine = next
-				i = j
+			if amount, balance, endIdx, ok, err := parseFlexibleAmountsAt(lines, j); ok {
+				if err != nil {
+					warnings = append(warnings, "invalid amount line: "+next)
+					i = endIdx
+					ignored = true
+					break
+				}
+				amountCents = amount
+				balanceCents = balance
+				amountFound = true
+				i = endIdx
 				break
 			}
-			if serial == "" && isFlexibleSerial(next) {
-				serial = next
+			if isFlexibleSerial(next) {
+				serials = append(serials, next)
 				continue
 			}
 			if looksLikeFlexibleHeaderAt(lines, j) {
@@ -1049,7 +1087,7 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 			break
 		}
 
-		if amountLine == "" {
+		if !amountFound {
 			if ignored {
 				continue
 			}
@@ -1057,27 +1095,10 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 			continue
 		}
 
-		match := flexibleAmountPattern.FindStringSubmatch(amountLine)
-		if len(match) != 3 {
-			warnings = append(warnings, "invalid amount line: "+amountLine)
-			continue
-		}
-
-		amountCents, err := normalize.ParseMoneyToCents(match[1])
-		if err != nil {
-			warnings = append(warnings, "invalid amount: "+amountLine)
-			continue
-		}
-		balanceCents, err := normalize.ParseMoneyToCents(match[2])
-		if err != nil {
-			warnings = append(warnings, "invalid balance: "+amountLine)
-			continue
-		}
-
 		txType := inferFlexibleMovementType(prevBalance, amountCents, balanceCents, description)
 		balanceCopy := balanceCents
 		txReference := reference
-		if serial != "" {
+		for _, serial := range serials {
 			if txReference != "" {
 				txReference = txReference + "/" + serial
 			} else {
@@ -1102,6 +1123,57 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 	}
 
 	return transactions, warnings, nil
+}
+
+func parseFlexibleAmountsAt(lines []string, start int) (int64, int64, int, bool, error) {
+	line := strings.TrimSpace(lines[start])
+	if match := flexibleAmountPattern.FindStringSubmatch(line); len(match) == 3 {
+		amount, err := normalize.ParseMoneyToCents(match[1])
+		if err != nil {
+			return 0, 0, start, true, err
+		}
+		balance, err := normalize.ParseMoneyToCents(match[2])
+		if err != nil {
+			return 0, 0, start, true, err
+		}
+		return amount, balance, start, true, nil
+	}
+
+	first := flexibleSingleAmount.FindStringSubmatch(line)
+	if len(first) != 2 {
+		return 0, 0, start, false, nil
+	}
+
+	nextIdx := -1
+	var nextLine string
+	for i := start + 1; i < len(lines); i++ {
+		next := strings.TrimSpace(lines[i])
+		if next == "" {
+			continue
+		}
+		nextIdx = i
+		nextLine = next
+		break
+	}
+	if nextIdx == -1 {
+		return 0, 0, start, false, nil
+	}
+
+	second := flexibleSingleAmount.FindStringSubmatch(nextLine)
+	if len(second) != 2 {
+		return 0, 0, start, false, nil
+	}
+
+	amount, err := normalize.ParseMoneyToCents(first[1])
+	if err != nil {
+		return 0, 0, nextIdx, true, err
+	}
+	balance, err := normalize.ParseMoneyToCents(second[1])
+	if err != nil {
+		return 0, 0, nextIdx, true, err
+	}
+
+	return amount, balance, nextIdx, true, nil
 }
 
 func looksLikeFlexibleHeader(line string) bool {
@@ -1132,7 +1204,7 @@ func looksLikeFlexibleHeaderAt(lines []string, idx int) bool {
 	}
 
 	nonEmpty := 0
-	for j := idx + 1; j < len(lines) && nonEmpty < 3; j++ {
+	for j := idx + 1; j < len(lines) && nonEmpty < 6; j++ {
 		next := strings.TrimSpace(lines[j])
 		if next == "" {
 			continue
@@ -1142,7 +1214,7 @@ func looksLikeFlexibleHeaderAt(lines []string, idx int) bool {
 		}
 
 		nonEmpty++
-		if flexibleAmountPattern.MatchString(next) {
+		if _, _, _, ok, _ := parseFlexibleAmountsAt(lines, j); ok {
 			return true
 		}
 		if isFlexibleSerial(next) {
@@ -1258,6 +1330,36 @@ func parseCompactDate(value string) (time.Time, error) {
 		return time.Time{}, err
 	}
 	year, err := strconv.Atoi(value[4:])
+	if err != nil {
+		return time.Time{}, err
+	}
+
+	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC), nil
+}
+
+func parseFlexiblePeriodDate(value string) (time.Time, error) {
+	if strings.Contains(value, "/") {
+		return parseSlashDate(value)
+	}
+
+	return parseCompactDate(value)
+}
+
+func parseSlashDate(value string) (time.Time, error) {
+	parts := strings.Split(strings.ReplaceAll(strings.TrimSpace(value), " ", ""), "/")
+	if len(parts) != 3 {
+		return time.Time{}, fmt.Errorf("hsbc: invalid slash date %q", value)
+	}
+
+	day, err := strconv.Atoi(parts[0])
+	if err != nil {
+		return time.Time{}, err
+	}
+	month, err := strconv.Atoi(parts[1])
+	if err != nil {
+		return time.Time{}, err
+	}
+	year, err := strconv.Atoi(parts[2])
 	if err != nil {
 		return time.Time{}, err
 	}
