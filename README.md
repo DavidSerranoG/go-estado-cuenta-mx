@@ -1,32 +1,20 @@
-# mxstatementpdf
+# go-estado-cuenta-mx
 
-`mxstatementpdf` is a standalone Go package for parsing Mexican bank statement PDFs into a neutral data structure that other applications can persist or transform.
+`go-estado-cuenta-mx` is a Go library for parsing Mexican bank statement PDFs into a normalized domain model.
 
-Current scope:
+- Module path: `github.com/DavidSerranoG/go-estado-cuenta-mx`
+- Recommended import alias: `edocuenta`
+- Recommended external entrypoint: `supported.New()`
 
-- BBVA support
-- HSBC credit card statements
-- HSBC Cuenta Flexible statements
-- PDF text extraction
-- optional Python `pypdf` fallback for difficult PDFs
-- bank detection
-- normalized statement output
-
-Out of scope:
-
-- databases
-- HTTP handlers
-- queues or workers
-- storage adapters
-- business workflows from consuming applications
+The project is still pre-1.0 and intentionally allows breaking changes while the OSS API is being cleaned up.
 
 ## Installation
 
 ```bash
-go get github.com/ledgermx/mxstatementpdf
+go get github.com/DavidSerranoG/go-estado-cuenta-mx
 ```
 
-## Usage
+## Quick Start
 
 ```go
 package main
@@ -36,9 +24,7 @@ import (
 	"log"
 	"os"
 
-	"github.com/ledgermx/mxstatementpdf"
-	"github.com/ledgermx/mxstatementpdf/bbva"
-	"github.com/ledgermx/mxstatementpdf/hsbc"
+	"github.com/DavidSerranoG/go-estado-cuenta-mx/supported"
 )
 
 func main() {
@@ -47,10 +33,7 @@ func main() {
 		log.Fatal(err)
 	}
 
-	processor := statementpdf.New(
-		statementpdf.WithParser(bbva.New()),
-		statementpdf.WithParser(hsbc.New()),
-	)
+	processor := supported.New()
 
 	statement, err := processor.ParsePDF(context.Background(), pdfBytes)
 	if err != nil {
@@ -61,31 +44,195 @@ func main() {
 }
 ```
 
-## Project layout
+For advanced callers that need warnings and extracted text:
 
-```text
-mxstatementpdf/
-  hsbc/
-  bbva/
-  internal/pdftext/
-  internal/normalize/
-  internal/registry/
-  docs/
-  examples/
-  testdata/
+```go
+result, err := supported.New().ParsePDFResult(ctx, pdfBytes)
+if err != nil {
+	log.Fatal(err)
+}
+
+_ = result.Statement
+_ = result.Warnings
+_ = result.Extraction
+_ = result.ExtractedText
 ```
 
-## Local real PDFs
+Example output shape:
 
-Use `.tmp/real-pdfs/` for local test files. That folder is ignored and must never be committed.
+```json
+{
+  "Statement": {
+    "Bank": "hsbc",
+    "AccountNumber": "5470749811846577",
+    "Currency": "MXN",
+    "PeriodStart": "2025-09-15T00:00:00Z",
+    "PeriodEnd": "2025-10-12T00:00:00Z",
+    "Transactions": [
+      {
+        "PostedAt": "2025-09-17T00:00:00Z",
+        "Description": "SU PAGO GRACIAS",
+        "Reference": "",
+        "Kind": "credit",
+        "AmountCents": 2500000,
+        "BalanceCents": null
+      }
+    ]
+  },
+  "Warnings": [],
+  "Extraction": {
+    "SelectedExtractor": "ledongthuc",
+    "UsedRescue": false,
+    "Attempts": [
+      {
+        "Extractor": "ledongthuc",
+        "Status": "succeeded",
+        "Message": "extractor produced usable text"
+      }
+    ]
+  },
+  "ExtractedText": "..."
+}
+```
 
-## Extractor strategy
+## Supported Banks
 
-By default the processor tries:
+| Bank | Layouts | Notes |
+| --- | --- | --- |
+| BBVA | account statements, credit card statements | CLABE fallback and OCR rescue supported |
+| HSBC | credit card statements, Cuenta Flexible | OCR-heavy card flows supported |
 
-1. a Go-native extractor
-2. a Python `pypdf` fallback if `python3` and `pypdf` are available
+Detailed notes:
 
-Some real HSBC PDFs require the fallback because they use font encodings that common Go PDF text extractors do not decode reliably yet.
+- [BBVA](docs/banks/bbva.md)
+- [HSBC](docs/banks/hsbc.md)
+- [Supported banks and limits](docs/supported-banks.md)
+- [Stability and compatibility](docs/stability.md)
 
-If needed, you can point the fallback to a specific Python binary with `MXSTATEMENTPDF_PYTHON=/path/to/python`.
+## Public API
+
+`Statement` is the clean domain model:
+
+- `Bank`
+- `AccountNumber`
+- `Currency`
+- `PeriodStart`
+- `PeriodEnd`
+- `Transactions`
+
+`Transaction` uses normalized kinds:
+
+- `debit`
+- `credit`
+
+Diagnostics live in `ParseResult`, not in `Statement`.
+
+`ParseResult.Extraction` tells you which extractor candidate won, whether a rescue
+extractor was ultimately selected, and which attempts were made along the way.
+
+## Extraction Strategy
+
+Default extraction is intentionally lightweight and predictable:
+
+- `ledongthuc` first
+- `pdftotext` second when available on the host
+
+OCR is opt-in. To enable rescue OCR:
+
+```go
+import (
+	edocuenta "github.com/DavidSerranoG/go-estado-cuenta-mx"
+	"github.com/DavidSerranoG/go-estado-cuenta-mx/supported"
+)
+
+processor := supported.New(
+	edocuenta.WithRescueExtractor(edocuenta.NewTesseractExtractor()),
+)
+```
+
+Available public extractor constructors:
+
+- `NewLedongthucExtractor()`
+- `NewPdftotextExtractor()`
+- `NewVisionExtractor()`
+- `NewTesseractExtractor()`
+- `NewTextExtractorChain(...)`
+
+## Optional Dependencies
+
+| Feature | Dependency | Required by default |
+| --- | --- | --- |
+| Go-native text extraction | Go only | yes |
+| `pdftotext` fallback | `pdftotext` binary | no |
+| Vision OCR | `swift` on macOS | no |
+| Tesseract OCR rescue | `tesseract` and `gs` | no |
+
+## Local Validation
+
+Real PDFs stay local under `.tmp/real-pdfs/` and are not part of the default suite.
+
+```bash
+go test ./...
+go run ./cmd/edocuenta-eval -root .tmp/real-pdfs -format markdown
+go test -tags realpdfs ./bbva -run TestParseLocalRealPDFs -count=1 -v
+go test -tags realpdfs ./hsbc -run TestParseLocalRealPDFs -count=1 -v
+```
+
+If you organize your private corpus as `.tmp/real-pdfs/<bank>/<layout>/*.pdf`,
+`edocuenta-eval` will summarize results by bank and layout automatically.
+
+## Dummy Fixture Generation
+
+`edocuenta-fixturegen` turns local real PDFs into sanitized dummy fixtures with a
+searchable text layer and sidecar metadata.
+
+Recommended flow:
+
+```bash
+go run ./cmd/edocuenta-fixturegen \
+  -input .tmp/real-pdfs \
+  -output testdata \
+  -mode both \
+  -branding mixed
+```
+
+This writes:
+
+- public fixtures under `testdata/public-pdfs/<bank>/<layout>/`
+- local-only fixtures under `testdata/local-pdfs/<bank>/<layout>/`
+- JSON sidecars with replacement counts, hashes, fidelity, and validation results
+
+Public mode requires high-fidelity generation by default. If the host is missing
+`pdftotext -bbox-layout` or a rasterizer such as `pdftocairo`, the command fails
+instead of silently emitting low-fidelity public fixtures.
+
+Optional tooling used by `fixturegen`:
+
+| Feature | Dependency |
+| --- | --- |
+| layout text boxes | `pdftotext -bbox-layout` |
+| raster background | `pdftocairo`, `gs`, or PDFKit via `swift` on macOS |
+
+Override files live under `testdata/fixturegen/overrides/<bank>/<layout>.json`.
+Use them for logo regions, fixed headers, or file-specific replacements that the
+automatic sanitizer should not guess.
+
+## Project Layout
+
+```text
+go-estado-cuenta-mx/
+  bbva/
+  hsbc/
+  supported/
+  internal/banks/
+  internal/pdftext/
+  internal/normalize/
+  docs/
+  examples/
+```
+
+## Contributing and Security
+
+- [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
+- [Changelog](CHANGELOG.md)

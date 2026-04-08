@@ -1,5 +1,7 @@
 .DS_Store
 .tmp/
+testdata/local-pdfs/
 coverage.out
 dist/
-
+examples/basic/*.pdf
+*.test

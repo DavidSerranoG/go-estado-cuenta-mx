@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DavidSerranoG/go-estado-cuenta-mx/internal/pdftext"
 	"github.com/go-pdf/fpdf"
-	"github.com/ledgermx/mxstatementpdf/internal/pdftext"
 )
 
 func TestLedongthucExtractsText(t *testing.T) {
@@ -27,6 +27,21 @@ func TestLedongthucExtractsText(t *testing.T) {
 
 	if !strings.Contains(text, "HSBC") {
 		t.Fatalf("expected HSBC text, got %q", text)
+	}
+}
+
+func TestLedongthucHonorsCanceledContext(t *testing.T) {
+	t.Parallel()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	_, err := pdftext.NewLedongthuc().ExtractText(ctx, mustPDF(t, []string{"BBVA"}))
+	if err == nil {
+		t.Fatal("expected context error")
+	}
+	if !strings.Contains(err.Error(), context.Canceled.Error()) {
+		t.Fatalf("expected canceled context in error, got %v", err)
 	}
 }
 

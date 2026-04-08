@@ -8,6 +8,10 @@ type Parser interface {
 	CanParse(text string) bool
 }
 
+type scoredParser interface {
+	DetectionScore(text string) int
+}
+
 // Store keeps an ordered list of parsers for detection and explicit lookup.
 type Store[T Parser] struct {
 	items []T
@@ -32,15 +36,29 @@ func (s *Store[T]) Len() int {
 
 // FindByText returns the first parser that can parse the given text.
 func (s *Store[T]) FindByText(text string) (T, bool) {
-	var zero T
+	parser, _, ok := s.FindByTextWithScore(text)
+	return parser, ok
+}
 
-	for _, item := range s.items {
-		if item.CanParse(text) {
-			return item, true
+// FindByTextWithScore returns the strongest parser match and its score.
+func (s *Store[T]) FindByTextWithScore(text string) (T, int, bool) {
+	var zero T
+	bestIndex := -1
+	bestScore := 0
+
+	for i, item := range s.items {
+		score := parserScore(item, text)
+		if score > bestScore {
+			bestIndex = i
+			bestScore = score
 		}
 	}
 
-	return zero, false
+	if bestIndex == -1 {
+		return zero, 0, false
+	}
+
+	return s.items[bestIndex], bestScore, true
 }
 
 // FindByBank returns the parser whose bank id matches the provided name.
@@ -59,4 +77,14 @@ func (s *Store[T]) FindByBank(bank string) (T, bool) {
 
 func normalizeBank(value string) string {
 	return strings.ToLower(strings.TrimSpace(value))
+}
+
+func parserScore[T Parser](item T, text string) int {
+	if scored, ok := any(item).(scoredParser); ok {
+		return scored.DetectionScore(text)
+	}
+	if item.CanParse(text) {
+		return 1
+	}
+	return 0
 }

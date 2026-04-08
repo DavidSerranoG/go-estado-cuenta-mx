@@ -1,10 +1,9 @@
-package statementpdf
+package edocuenta
 
 import (
 	"context"
 
-	"github.com/ledgermx/mxstatementpdf/internal/pdftext"
-	"github.com/ledgermx/mxstatementpdf/internal/registry"
+	"github.com/DavidSerranoG/go-estado-cuenta-mx/internal/registry"
 )
 
 // TextExtractor extracts plain text from a PDF payload.
@@ -19,17 +18,31 @@ type Parser interface {
 	Parse(text string) (Statement, error)
 }
 
+// ResultParser optionally exposes parser warnings and other parsing diagnostics.
+type ResultParser interface {
+	ParseResult(text string) (ParseResult, error)
+}
+
+// ScoredParser optionally exposes stronger bank detection.
+//
+// When multiple parsers are registered, the processor prefers the parser with
+// the highest positive score. Parsers that do not implement this interface
+// still participate using their boolean CanParse result.
+type ScoredParser interface {
+	DetectionScore(text string) int
+}
+
 // Processor orchestrates PDF text extraction and bank-specific parsing.
 type Processor struct {
-	extractor TextExtractor
-	parsers   *registry.Store[Parser]
+	extractor       TextExtractor
+	rescueExtractor TextExtractor
+	parsers         *registry.Store[Parser]
 }
 
 // New builds a Processor with the provided options.
 func New(opts ...Option) *Processor {
 	processor := &Processor{
-		extractor: pdftext.NewDefault(),
-		parsers:   registry.New[Parser](),
+		parsers: registry.New[Parser](),
 	}
 
 	for _, opt := range opts {
@@ -38,80 +51,88 @@ func New(opts ...Option) *Processor {
 		}
 	}
 
+	if processor.extractor == nil {
+		processor.extractor = NewDefaultTextExtractor()
+	}
+
 	return processor
 }
 
 // ParsePDF extracts text from the PDF, auto-detects the parser, and returns the normalized statement.
 func (p *Processor) ParsePDF(ctx context.Context, pdfBytes []byte) (Statement, error) {
-	if len(pdfBytes) == 0 {
-		return Statement{}, ErrEmptyPDF
-	}
-
-	text, err := p.extractor.ExtractText(ctx, pdfBytes)
+	result, err := p.ParsePDFResult(ctx, pdfBytes)
 	if err != nil {
 		return Statement{}, err
 	}
 
-	return p.ParseText(text)
+	return result.Statement, nil
+}
+
+// ParsePDFResult extracts text from the PDF, auto-detects the parser, and
+// returns the normalized statement plus parse diagnostics.
+func (p *Processor) ParsePDFResult(ctx context.Context, pdfBytes []byte) (ParseResult, error) {
+	return p.parsePDFResult(ctx, pdfBytes, "")
 }
 
 // ParsePDFWithBank extracts text and uses an explicit parser by bank identifier.
 func (p *Processor) ParsePDFWithBank(ctx context.Context, pdfBytes []byte, bank string) (Statement, error) {
-	if len(pdfBytes) == 0 {
-		return Statement{}, ErrEmptyPDF
-	}
-
-	text, err := p.extractor.ExtractText(ctx, pdfBytes)
+	result, err := p.ParsePDFWithBankResult(ctx, pdfBytes, bank)
 	if err != nil {
 		return Statement{}, err
 	}
 
-	return p.ParseTextWithBank(text, bank)
+	return result.Statement, nil
+}
+
+// ParsePDFWithBankResult extracts text and uses an explicit parser by bank
+// identifier, returning diagnostics as well.
+func (p *Processor) ParsePDFWithBankResult(ctx context.Context, pdfBytes []byte, bank string) (ParseResult, error) {
+	return p.parsePDFResult(ctx, pdfBytes, bank)
 }
 
 // ParseText auto-detects the parser from extracted plain text.
 func (p *Processor) ParseText(text string) (Statement, error) {
-	parser, err := p.detect(text)
+	result, err := p.ParseTextResult(text)
 	if err != nil {
 		return Statement{}, err
 	}
 
-	statement, err := parser.Parse(text)
-	if err != nil {
-		return Statement{}, err
-	}
+	return result.Statement, nil
+}
 
-	statement.ExtractedText = text
-	return statement, nil
+// ParseTextResult auto-detects the parser from extracted plain text and
+// returns the normalized statement plus parser diagnostics.
+func (p *Processor) ParseTextResult(text string) (ParseResult, error) {
+	return p.parseTextCandidate(text, "")
 }
 
 // ParseTextWithBank uses an explicit parser by bank identifier.
 func (p *Processor) ParseTextWithBank(text string, bank string) (Statement, error) {
-	parser, err := p.byBank(bank)
+	result, err := p.ParseTextWithBankResult(text, bank)
 	if err != nil {
 		return Statement{}, err
+	}
+
+	return result.Statement, nil
+}
+
+// ParseTextWithBankResult uses an explicit parser by bank identifier and
+// returns the normalized statement plus parser diagnostics.
+func (p *Processor) ParseTextWithBankResult(text string, bank string) (ParseResult, error) {
+	return p.parseTextCandidate(text, bank)
+}
+
+func (p *Processor) parseWithParser(parser Parser, text string) (ParseResult, error) {
+	if detailed, ok := parser.(ResultParser); ok {
+		return detailed.ParseResult(text)
 	}
 
 	statement, err := parser.Parse(text)
 	if err != nil {
-		return Statement{}, err
+		return ParseResult{}, err
 	}
 
-	statement.ExtractedText = text
-	return statement, nil
-}
-
-func (p *Processor) detect(text string) (Parser, error) {
-	if p.parsers.Len() == 0 {
-		return nil, ErrNoParsersConfigured
-	}
-
-	parser, ok := p.parsers.FindByText(text)
-	if !ok {
-		return nil, ErrUnsupportedFormat
-	}
-
-	return parser, nil
+	return ParseResult{Statement: statement}, nil
 }
 
 func (p *Processor) byBank(bank string) (Parser, error) {

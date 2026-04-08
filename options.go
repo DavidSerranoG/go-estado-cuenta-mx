@@ -1,4 +1,4 @@
-package statementpdf
+package edocuenta
 
 // Option configures a Processor.
 type Option func(*Processor)
@@ -8,6 +8,19 @@ func WithExtractor(extractor TextExtractor) Option {
 	return func(p *Processor) {
 		if extractor != nil {
 			p.extractor = extractor
+		}
+	}
+}
+
+// WithRescueExtractor overrides the optional OCR rescue extractor used after a
+// parser reports unsupported or insufficient text from the primary extraction.
+//
+// Rescue extraction is opt-in; the default processor does not enable OCR
+// automatically.
+func WithRescueExtractor(extractor TextExtractor) Option {
+	return func(p *Processor) {
+		if extractor != nil {
+			p.rescueExtractor = extractor
 		}
 	}
 }

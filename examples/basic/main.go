@@ -2,27 +2,37 @@ package main
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"log"
 	"os"
 
-	"github.com/ledgermx/mxstatementpdf"
-	"github.com/ledgermx/mxstatementpdf/hsbc"
+	"github.com/DavidSerranoG/go-estado-cuenta-mx/supported"
 )
 
 func main() {
-	pdfBytes, err := os.ReadFile("statement.pdf")
+	log.SetFlags(0)
+
+	if len(os.Args) != 2 {
+		fmt.Fprintln(os.Stderr, "usage: go run ./examples/basic <statement.pdf>")
+		os.Exit(2)
+	}
+
+	pdfBytes, err := os.ReadFile(os.Args[1])
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	processor := statementpdf.New(
-		statementpdf.WithParser(hsbc.New()),
-	)
+	processor := supported.New()
 
-	statement, err := processor.ParsePDF(context.Background(), pdfBytes)
+	result, err := processor.ParsePDFResult(context.Background(), pdfBytes)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	log.Printf("bank=%s account=%s tx=%d", statement.Bank, statement.AccountNumber, len(statement.Transactions))
+	encoder := json.NewEncoder(os.Stdout)
+	encoder.SetIndent("", "  ")
+	if err := encoder.Encode(result); err != nil {
+		log.Fatal(err)
+	}
 }

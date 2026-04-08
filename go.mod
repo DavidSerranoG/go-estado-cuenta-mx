@@ -1,6 +1,8 @@
-module github.com/ledgermx/mxstatementpdf
+module github.com/DavidSerranoG/go-estado-cuenta-mx
 
-go 1.25.5
+go 1.25
+
+toolchain go1.25.5
 
 require (
 	github.com/go-pdf/fpdf v0.9.0

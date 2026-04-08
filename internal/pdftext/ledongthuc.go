@@ -1,11 +1,9 @@
 package pdftext
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"io"
-	"os"
 
 	pdf "github.com/ledongthuc/pdf"
 )
@@ -18,37 +16,75 @@ func NewLedongthuc() Ledongthuc {
 	return Ledongthuc{}
 }
 
+// Name identifies the extractor in chain reports.
+func (Ledongthuc) Name() string {
+	return "ledongthuc"
+}
+
 // ExtractText converts a PDF into plain text.
-func (Ledongthuc) ExtractText(_ context.Context, pdfBytes []byte) (string, error) {
-	tmpFile, err := os.CreateTemp("", "mxstatementpdf-*.pdf")
-	if err != nil {
-		return "", fmt.Errorf("create temp file: %w", err)
-	}
-	defer os.Remove(tmpFile.Name())
-
-	if _, err := io.Copy(tmpFile, bytes.NewReader(pdfBytes)); err != nil {
-		tmpFile.Close()
-		return "", fmt.Errorf("write temp file: %w", err)
-	}
-	if err := tmpFile.Close(); err != nil {
-		return "", fmt.Errorf("close temp file: %w", err)
+func (Ledongthuc) ExtractText(ctx context.Context, pdfBytes []byte) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", newExtractorError("ledongthuc", AttemptCodeFailed, err)
 	}
 
-	file, reader, err := pdf.Open(tmpFile.Name())
+	reader, err := pdf.NewReader(bytesReaderAt(pdfBytes), int64(len(pdfBytes)))
 	if err != nil {
-		return "", fmt.Errorf("open pdf: %w", err)
+		return "", newExtractorError("ledongthuc", AttemptCodeFailed, fmt.Errorf("open pdf: %w", err))
 	}
-	defer file.Close()
 
 	plain, err := reader.GetPlainText()
 	if err != nil {
-		return "", fmt.Errorf("extract plain text: %w", err)
+		return "", newExtractorError("ledongthuc", AttemptCodeFailed, fmt.Errorf("extract plain text: %w", err))
 	}
 
-	text, err := io.ReadAll(plain)
+	text, err := readAllWithContext(ctx, plain)
 	if err != nil {
-		return "", fmt.Errorf("read extracted text: %w", err)
+		return "", newExtractorError("ledongthuc", AttemptCodeFailed, fmt.Errorf("read extracted text: %w", err))
 	}
 
 	return string(text), nil
+}
+
+type bytesReaderAt []byte
+
+func (b bytesReaderAt) ReadAt(p []byte, off int64) (int, error) {
+	return copyReadAt([]byte(b), p, off)
+}
+
+func readAllWithContext(ctx context.Context, reader io.Reader) ([]byte, error) {
+	var data []byte
+	buf := make([]byte, 32*1024)
+
+	for {
+		if err := ctx.Err(); err != nil {
+			return nil, err
+		}
+
+		n, err := reader.Read(buf)
+		if n > 0 {
+			data = append(data, buf[:n]...)
+		}
+		if err == nil {
+			continue
+		}
+		if err == io.EOF {
+			return data, nil
+		}
+		return nil, err
+	}
+}
+
+func copyReadAt(src []byte, dst []byte, off int64) (int, error) {
+	if off < 0 {
+		return 0, fmt.Errorf("negative offset")
+	}
+	if off >= int64(len(src)) {
+		return 0, io.EOF
+	}
+
+	n := copy(dst, src[off:])
+	if n < len(dst) {
+		return n, io.EOF
+	}
+	return n, nil
 }
