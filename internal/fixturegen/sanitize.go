@@ -110,7 +110,7 @@ func buildDummyStatement(ctx *sanitizeContext) edocuenta.Statement {
 		dummy.Description = sanitizeDescription(tx.Description, i, ctx)
 		dummy.AmountCents = dummyAmount(tx.AmountCents, i)
 		if tx.BalanceCents != nil {
-			if tx.Kind == edocuenta.TransactionKindCredit {
+			if tx.Direction == edocuenta.TransactionDirectionCredit {
 				running += dummy.AmountCents
 			} else {
 				running -= dummy.AmountCents
@@ -165,7 +165,7 @@ func dummyAmount(original int64, idx int) int64 {
 func statementTotals(statement edocuenta.Statement) (int64, int64) {
 	var debit, credit int64
 	for _, tx := range statement.Transactions {
-		if tx.Kind == edocuenta.TransactionKindCredit {
+		if tx.Direction == edocuenta.TransactionDirectionCredit {
 			credit += tx.AmountCents
 		} else {
 			debit += tx.AmountCents
@@ -184,7 +184,7 @@ func deriveOpeningBalance(statement edocuenta.Statement) *int64 {
 	}
 
 	value := *first.BalanceCents
-	if first.Kind == edocuenta.TransactionKindCredit {
+	if first.Direction == edocuenta.TransactionDirectionCredit {
 		value -= first.AmountCents
 	} else {
 		value += first.AmountCents
@@ -370,7 +370,7 @@ func (ctx *sanitizeContext) sanitizeBBVACardLine(line string) string {
 			formatDateLike(match[1], tx.PostedAt.AddDate(0, 0, -1)),
 			formatDateLike(match[2], tx.PostedAt),
 			tx.Description,
-			cardSign(tx.Kind),
+			cardSign(tx.Direction),
 			formatMoney(tx.AmountCents),
 		)
 	}
@@ -394,7 +394,7 @@ func (ctx *sanitizeContext) sanitizeBBVAAccountLine(line string) string {
 		return fmt.Sprintf("%s %s %s %s %s",
 			formatDateLike(match[1], tx.PostedAt),
 			tx.Description,
-			legacyKind(tx.Kind),
+			legacyKind(tx.Direction),
 			formatMoney(tx.AmountCents),
 			formatMoney(balance),
 		)
@@ -438,7 +438,7 @@ func (ctx *sanitizeContext) sanitizeHSBCCardLine(line string) string {
 			formatDateLike(match[1], tx.PostedAt.AddDate(0, 0, -1)),
 			formatDateLike(match[2], tx.PostedAt),
 			tx.Description,
-			hsbcSign(tx.Kind),
+			hsbcSign(tx.Direction),
 			formatMoney(tx.AmountCents),
 		)
 	}
@@ -457,7 +457,7 @@ func (ctx *sanitizeContext) sanitizeHSBCFlexibleLine(line string) string {
 			balance = *tx.BalanceCents
 		}
 
-		if tx.Kind == edocuenta.TransactionKindCredit {
+		if tx.Direction == edocuenta.TransactionDirectionCredit {
 			return fmt.Sprintf("$ %s $ %s", formatMoney(tx.AmountCents), formatMoney(balance))
 		}
 		return fmt.Sprintf("$ %s $ %s", formatMoney(tx.AmountCents), formatMoney(balance))
@@ -691,22 +691,22 @@ func formatShortDate(date time.Time) string {
 	return fmt.Sprintf("%02d/%s", date.Day(), strings.ToUpper(monthToken(date.Month(), "SEP")))
 }
 
-func cardSign(kind edocuenta.TransactionKind) string {
-	if kind == edocuenta.TransactionKindCredit {
+func cardSign(kind edocuenta.TransactionDirection) string {
+	if kind == edocuenta.TransactionDirectionCredit {
 		return "-"
 	}
 	return "+"
 }
 
-func hsbcSign(kind edocuenta.TransactionKind) string {
-	if kind == edocuenta.TransactionKindCredit {
+func hsbcSign(kind edocuenta.TransactionDirection) string {
+	if kind == edocuenta.TransactionDirectionCredit {
 		return "-"
 	}
 	return "+"
 }
 
-func legacyKind(kind edocuenta.TransactionKind) string {
-	if kind == edocuenta.TransactionKindCredit {
+func legacyKind(kind edocuenta.TransactionDirection) string {
+	if kind == edocuenta.TransactionDirectionCredit {
 		return "ABONO"
 	}
 	return "CARGO"

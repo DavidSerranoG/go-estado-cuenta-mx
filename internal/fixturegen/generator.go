@@ -306,7 +306,7 @@ func sameKindSequence(left, right []edocuenta.Transaction) bool {
 		return false
 	}
 	for i := range left {
-		if left[i].Kind != right[i].Kind {
+		if left[i].Direction != right[i].Direction {
 			return false
 		}
 	}

@@ -11,10 +11,19 @@ Expected data:
 
 - account number
 - period start and end
+- account class (`asset` for account statements, `liability` for credit cards)
+- optional summary fields when explicitly present in the statement
 - transaction list
-- transaction kind (`debit` / `credit`)
+- transaction direction (`debit` / `credit`)
 - amount
 - running balance
+
+Summary coverage:
+
+| Layout | AccountClass | Public summary fields |
+| --- | --- | --- |
+| account statement | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
+| credit card statement | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
 
 Supported inputs:
 
@@ -34,8 +43,10 @@ Current parser behavior:
 - it maps `MONEDA NACIONAL` and similar peso markers to `MXN`
 - it maps `MONEDA DÓLARES`, `MONEDA DOLARES`, and similar dollar-account markers to `USD`
 - it infers `debit` or `credit` from running balance first, then description hints, then statement totals
+- it classifies BBVA deposit layouts as `AccountClass=asset` and BBVA credit cards as `AccountClass=liability`
+- for account statements it exposes opening and closing balances plus total cargos and abonos when those labels are present
 - it can repair a contaminated amount when the running balance makes the intended movement clear
-- for credit cards it parses the `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)` section, maps `Fecha de cargo` into `PostedAt`, keeps `BalanceCents` empty, and validates parsed movements against `TOTAL CARGOS` / `TOTAL ABONOS`
+- for credit cards it parses the `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)` section, maps `Fecha de cargo` into `PostedAt`, keeps `BalanceCents` empty, validates parsed movements against `TOTAL CARGOS` / `TOTAL ABONOS`, and exposes `PAGO PARA NO GENERAR INTERESES` when present
 - for credit cards it can join OCR continuation lines such as `MXP ... TIPO DE CAMBIO ...` onto the preceding movement description
 
 Known limits:
@@ -45,3 +56,4 @@ Known limits:
 - CLABE fallback assumes standard 18-digit CLABE extraction; badly interleaved OCR digits may still fail
 - credit card support currently covers only `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)`; benefits, glossary, notes, and purchases at instalments are ignored
 - credit card currency is currently normalized as `MXN`
+- `AverageBalanceCents`, `PaymentDueDate`, `MinimumPaymentCents`, `CreditLimitCents`, and `AvailableCreditCents` stay empty unless a future BBVA layout exposes them with stable labels

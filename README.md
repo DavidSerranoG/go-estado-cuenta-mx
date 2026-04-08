@@ -64,18 +64,23 @@ Example output shape:
 {
   "Statement": {
     "Bank": "hsbc",
-    "AccountNumber": "5470749811846577",
+    "AccountNumber": "6529009644",
     "Currency": "MXN",
-    "PeriodStart": "2025-09-15T00:00:00Z",
-    "PeriodEnd": "2025-10-12T00:00:00Z",
+    "PeriodStart": "2025-10-01T00:00:00Z",
+    "PeriodEnd": "2025-10-31T00:00:00Z",
+    "AccountClass": "asset",
+    "Summary": {
+      "OpeningBalanceCents": 659573,
+      "ClosingBalanceCents": 759573
+    },
     "Transactions": [
       {
-        "PostedAt": "2025-09-17T00:00:00Z",
-        "Description": "SU PAGO GRACIAS",
-        "Reference": "",
-        "Kind": "credit",
-        "AmountCents": 2500000,
-        "BalanceCents": null
+        "PostedAt": "2025-10-20T00:00:00Z",
+        "Description": "A MI HSBC",
+        "Reference": "081025008045221/201345",
+        "Direction": "credit",
+        "AmountCents": 3600000,
+        "BalanceCents": 4259573
       }
     ]
   },
@@ -118,17 +123,31 @@ Detailed notes:
 - `Currency`
 - `PeriodStart`
 - `PeriodEnd`
+- `AccountClass`
+- `Summary`
 - `Transactions`
 
-`Transaction` uses normalized kinds:
+`AccountClass` uses accounting terminology:
+
+- `asset`
+- `liability`
+
+`Transaction` uses normalized directions:
 
 - `debit`
 - `credit`
+
+`Summary` is optional and only contains fields explicitly exposed by the source
+statement, such as opening and closing balances, debit and credit totals, or
+card payment metadata.
 
 Diagnostics live in `ParseResult`, not in `Statement`.
 
 `ParseResult.Extraction` tells you which extractor candidate won, whether a rescue
 extractor was ultimately selected, and which attempts were made along the way.
+
+`AccountClass` describes the statement account itself. `Transaction.Direction`
+describes each individual movement. They are intentionally separate concepts.
 
 ## Extraction Strategy
 

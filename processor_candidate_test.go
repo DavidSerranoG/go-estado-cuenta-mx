@@ -142,7 +142,7 @@ func (fakeCandidateParser) ParseResult(text string) (edocuenta.ParseResult, erro
 		transactions = append(transactions, edocuenta.Transaction{
 			PostedAt:    time.Date(2026, 4, i+1, 0, 0, 0, 0, time.UTC),
 			Description: fmt.Sprintf("tx-%d", i+1),
-			Kind:        edocuenta.TransactionKindDebit,
+			Direction:   edocuenta.TransactionDirectionDebit,
 			AmountCents: int64(100 + i),
 		})
 	}

@@ -32,6 +32,7 @@ var (
 		regexp.MustCompile(`(?i)periodo\s*:?\s*(?:del\s*)?(` + bbvaFullDatePattern + `)\s*(?:-|a|al)\s*(` + bbvaFullDatePattern + `)`),
 	}
 	openingBalancePattern = regexp.MustCompile(`(?i)saldo anterior\s*([0-9,]+\.\d{2})`)
+	closingBalancePattern = regexp.MustCompile(`(?i)saldo final\s*([0-9,]+\.\d{2})`)
 	summaryPattern        = regexp.MustCompile(`(?is)total importe cargos\s*([0-9,]+\.\d{2})\s*total movimientos cargos\s*([0-9]+)\s*total importe abonos\s*([0-9,]+\.\d{2})\s*total movimientos abonos\s*([0-9]+)`)
 	legacyTxPattern       = regexp.MustCompile(`(?i)^([0-9]{2}/[0-9]{2}/[0-9]{4})\s+(.+?)\s+(ABONO|CARGO)\s+([0-9,]+\.\d{2})\s+([0-9,]+\.\d{2})$`)
 	realTxStartPattern    = regexp.MustCompile(`(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)`)
@@ -112,6 +113,8 @@ func (Parser) ParseResult(text string) (edocuenta.ParseResult, error) {
 			Currency:      parseCurrency(text),
 			PeriodStart:   periodStart,
 			PeriodEnd:     periodEnd,
+			AccountClass:  edocuenta.AccountClassAsset,
+			Summary:       buildAccountSummary(text),
 			Transactions:  transactions,
 		},
 		Warnings: warnings,
@@ -306,7 +309,7 @@ func parseLegacyTransactions(text string) ([]edocuenta.Transaction, []string) {
 		transactions = append(transactions, edocuenta.Transaction{
 			PostedAt:     postedAt,
 			Description:  match[2],
-			Kind:         legacyMovementKind(match[3]),
+			Direction:    legacyMovementKind(match[3]),
 			AmountCents:  amountCents,
 			BalanceCents: &balanceCopy,
 		})
@@ -359,7 +362,7 @@ func parseRealTransactions(text string, periodStart, periodEnd time.Time) ([]edo
 			PostedAt:     item.postedAt,
 			Description:  item.description,
 			Reference:    item.reference,
-			Kind:         item.kind,
+			Direction:    item.kind,
 			AmountCents:  item.amountCents,
 			BalanceCents: balance,
 		})
@@ -375,7 +378,7 @@ type rawTransaction struct {
 	amountCents  int64
 	balanceCents *int64
 	rawLine      string
-	kind         edocuenta.TransactionKind
+	kind         edocuenta.TransactionDirection
 }
 
 type transactionSummary struct {
@@ -491,6 +494,20 @@ func parseOpeningBalance(text string) (*int64, bool) {
 	return &value, true
 }
 
+func parseClosingBalance(text string) (*int64, bool) {
+	match := closingBalancePattern.FindStringSubmatch(text)
+	if len(match) != 2 {
+		return nil, false
+	}
+
+	value, err := normalize.ParseOCRMoneyToCents(match[1])
+	if err != nil {
+		return nil, false
+	}
+
+	return &value, true
+}
+
 func parseTransactionSummary(text string) (*transactionSummary, bool) {
 	match := summaryPattern.FindStringSubmatch(text)
 	if len(match) != 5 {
@@ -523,6 +540,39 @@ func parseTransactionSummary(text string) (*transactionSummary, bool) {
 		abonoAmountCents: abonoAmountCents,
 		abonoCount:       abonoCount,
 	}, true
+}
+
+func buildAccountSummary(text string) *edocuenta.StatementSummary {
+	var (
+		summary   edocuenta.StatementSummary
+		populated bool
+	)
+
+	if openingBalance, ok := parseOpeningBalance(text); ok {
+		summary.OpeningBalanceCents = openingBalance
+		populated = true
+	}
+
+	if closingBalance, ok := parseClosingBalance(text); ok {
+		summary.ClosingBalanceCents = closingBalance
+		populated = true
+	}
+
+	if totals, ok := parseTransactionSummary(text); ok {
+		summary.TotalDebitsCents = int64Ptr(totals.cargoAmountCents)
+		summary.TotalCreditsCents = int64Ptr(totals.abonoAmountCents)
+		populated = true
+	}
+
+	if !populated {
+		return nil
+	}
+
+	return &summary
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
 }
 
 func resolveTransactionKinds(items []rawTransaction, openingBalance *int64, summary *transactionSummary) {
@@ -565,7 +615,7 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 			switch {
 			case delta < 0:
 				if item.kind == "" {
-					item.kind = edocuenta.TransactionKindDebit
+					item.kind = edocuenta.TransactionDirectionDebit
 					changed = true
 				}
 				if item.amountCents != -delta {
@@ -574,7 +624,7 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 				}
 			case delta > 0:
 				if item.kind == "" {
-					item.kind = edocuenta.TransactionKindCredit
+					item.kind = edocuenta.TransactionDirectionCredit
 					changed = true
 				}
 				if item.amountCents != delta {
@@ -584,10 +634,10 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 			default:
 				switch {
 				case item.kind == "" && running-item.amountCents == *item.balanceCents:
-					item.kind = edocuenta.TransactionKindDebit
+					item.kind = edocuenta.TransactionDirectionDebit
 					changed = true
 				case item.kind == "" && running+item.amountCents == *item.balanceCents:
-					item.kind = edocuenta.TransactionKindCredit
+					item.kind = edocuenta.TransactionDirectionCredit
 					changed = true
 				}
 			}
@@ -645,10 +695,10 @@ func resolveWithSummary(items []rawTransaction, summary *transactionSummary) boo
 
 	for i, item := range items {
 		switch item.kind {
-		case edocuenta.TransactionKindDebit:
+		case edocuenta.TransactionDirectionDebit:
 			resolvedCargoCount++
 			resolvedCargoTotal += item.amountCents
-		case edocuenta.TransactionKindCredit:
+		case edocuenta.TransactionDirectionCredit:
 			resolvedAbonoCount++
 			resolvedAbonoTotal += item.amountCents
 		default:
@@ -670,12 +720,12 @@ func resolveWithSummary(items []rawTransaction, summary *transactionSummary) boo
 	switch {
 	case remainingCargoCount == len(unresolvedIndexes) && remainingAbonoCount == 0:
 		for _, idx := range unresolvedIndexes {
-			items[idx].kind = edocuenta.TransactionKindDebit
+			items[idx].kind = edocuenta.TransactionDirectionDebit
 			changed = true
 		}
 	case remainingAbonoCount == len(unresolvedIndexes) && remainingCargoCount == 0:
 		for _, idx := range unresolvedIndexes {
-			items[idx].kind = edocuenta.TransactionKindCredit
+			items[idx].kind = edocuenta.TransactionDirectionCredit
 			changed = true
 		}
 	}
@@ -688,10 +738,10 @@ func resolveWithSummary(items []rawTransaction, summary *transactionSummary) boo
 		idx := unresolvedIndexes[0]
 		switch {
 		case remainingCargoCount == 1 && remainingAbonoCount == 0 && items[idx].amountCents == remainingCargoTotal:
-			items[idx].kind = edocuenta.TransactionKindDebit
+			items[idx].kind = edocuenta.TransactionDirectionDebit
 			return true
 		case remainingAbonoCount == 1 && remainingCargoCount == 0 && items[idx].amountCents == remainingAbonoTotal:
-			items[idx].kind = edocuenta.TransactionKindCredit
+			items[idx].kind = edocuenta.TransactionDirectionCredit
 			return true
 		}
 	}
@@ -699,38 +749,38 @@ func resolveWithSummary(items []rawTransaction, summary *transactionSummary) boo
 	return false
 }
 
-func classifyByDescription(description string) edocuenta.TransactionKind {
+func classifyByDescription(description string) edocuenta.TransactionDirection {
 	upper := strings.ToUpper(description)
 	switch {
 	case strings.Contains(upper, "SPEI ENVIADO"),
 		strings.Contains(upper, "PAGO TARJETA DE CREDITO"),
 		strings.Contains(upper, "RETIRO SIN TARJETA"),
 		strings.HasPrefix(upper, "SAT"):
-		return edocuenta.TransactionKindDebit
+		return edocuenta.TransactionDirectionDebit
 	case strings.Contains(upper, "SPEI RECIBIDO"),
 		strings.Contains(upper, "SPEI RECIBIDOS"),
 		strings.Contains(upper, "SPEI DEVUELTO"),
 		strings.Contains(upper, "DEPOSITO"),
 		strings.Contains(upper, "NOMINA"):
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	default:
 		return ""
 	}
 }
 
-func applyAmount(balance, amount int64, kind edocuenta.TransactionKind) int64 {
-	if kind == edocuenta.TransactionKindCredit {
+func applyAmount(balance, amount int64, kind edocuenta.TransactionDirection) int64 {
+	if kind == edocuenta.TransactionDirectionCredit {
 		return balance + amount
 	}
 	return balance - amount
 }
 
-func legacyMovementKind(value string) edocuenta.TransactionKind {
+func legacyMovementKind(value string) edocuenta.TransactionDirection {
 	if strings.EqualFold(strings.TrimSpace(value), "ABONO") {
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	}
 
-	return edocuenta.TransactionKindDebit
+	return edocuenta.TransactionDirectionDebit
 }
 
 func parseShortDate(value string, periodStart, periodEnd time.Time) (time.Time, error) {

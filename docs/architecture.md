@@ -16,8 +16,17 @@ Flow:
 1. the consumer provides PDF bytes
 2. the processor runs the configured text extraction strategy
 3. a bank parser is selected explicitly or by structural detection score
-4. the parser returns a normalized `Statement`
+4. the parser returns a normalized `Statement`, including `AccountClass` and optional `Summary` data when the layout exposes them clearly
 5. advanced callers can inspect `ParseResult` warnings, extraction diagnostics, and extracted text
+
+`Statement` is the clean domain model. It now includes:
+
+- account-level classification through `AccountClass`
+- optional statement-level metadata through `Summary`
+- per-movement posting direction through `Transaction.Direction`
+
+`ParseResult` still exists only for diagnostics. Warnings, extracted text, and
+extractor selection stay out of `Statement`.
 
 ## Built-in extraction strategy
 

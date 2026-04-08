@@ -24,6 +24,7 @@ var (
 	cardTransactionLinePattern    = regexp.MustCompile(`([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*([0-9]{2}-[A-Za-z]{3,4}-[0-9]{4})\s*(.+?)\s*([+-])\s*\$?\s*([0-9,]+\.\d{2})`)
 	cardTotalCargosPattern        = regexp.MustCompile(`(?i)TOTAL\s+CARGOS[^0-9+\-$]*([+-]?\s*\$?\s*[0-9,]+\.\d{2})`)
 	cardTotalAbonosPattern        = regexp.MustCompile(`(?i)TOTAL\s+ABONOS[^0-9+\-$]*([+-]?\s*\$?\s*[0-9,]+\.\d{2})`)
+	cardPaymentToAvoidPattern     = regexp.MustCompile(`(?i)pago\s+para\s+no\s+generar\s+intereses\s*:?\s*\$?\s*([0-9,]+\.\d{2})`)
 	cardStatementTitlePattern     = regexp.MustCompile(`(?i)TARJETA\s+.+\s+BBVA`)
 	cardStartSectionPattern       = regexp.MustCompile(`(?i)DESGLOSE\s+DE\s+MOVIMIENTOS`)
 	cardRegularChargesPattern     = regexp.MustCompile(`(?i)CARGOS,?\s*COMPRAS\s+Y\s+ABONOS\s+REGULARES`)
@@ -120,6 +121,8 @@ func parseCardResult(text string) (edocuenta.ParseResult, error) {
 			Currency:      edocuenta.CurrencyMXN,
 			PeriodStart:   periodStart,
 			PeriodEnd:     periodEnd,
+			AccountClass:  edocuenta.AccountClassLiability,
+			Summary:       buildCardStatementSummary(text),
 			Transactions:  transactions,
 		},
 		Warnings: warnings,
@@ -290,6 +293,46 @@ func parseCardTotals(text string) (int64, int64, bool) {
 	return cargos, abonos, true
 }
 
+func parsePaymentToAvoidInterest(text string) (*int64, bool) {
+	match := cardPaymentToAvoidPattern.FindStringSubmatch(text)
+	if len(match) != 2 {
+		return nil, false
+	}
+
+	value, err := normalize.ParseOCRMoneyToCents(match[1])
+	if err != nil {
+		return nil, false
+	}
+
+	return &value, true
+}
+
+func buildCardStatementSummary(text string) *edocuenta.StatementSummary {
+	var (
+		summary   edocuenta.StatementSummary
+		populated bool
+	)
+
+	if section, ok := extractCardTransactionSection(text); ok {
+		if cargos, abonos, ok := parseCardTotals(section); ok {
+			summary.TotalDebitsCents = int64Ptr(cargos)
+			summary.TotalCreditsCents = int64Ptr(abonos)
+			populated = true
+		}
+	}
+
+	if paymentToAvoidInterest, ok := parsePaymentToAvoidInterest(text); ok {
+		summary.PaymentToAvoidInterestCents = paymentToAvoidInterest
+		populated = true
+	}
+
+	if !populated {
+		return nil
+	}
+
+	return &summary
+}
+
 func shouldIgnoreCardLine(line string) bool {
 	upper := strings.ToUpper(line)
 
@@ -352,16 +395,16 @@ func buildCardTransaction(match []string) (edocuenta.Transaction, error) {
 	return edocuenta.Transaction{
 		PostedAt:    postedAt,
 		Description: description,
-		Kind:        cardMovementKind(match[4]),
+		Direction:   cardMovementKind(match[4]),
 		AmountCents: amountCents,
 	}, nil
 }
 
-func cardMovementKind(sign string) edocuenta.TransactionKind {
+func cardMovementKind(sign string) edocuenta.TransactionDirection {
 	if strings.TrimSpace(sign) == "-" {
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	}
-	return edocuenta.TransactionKindDebit
+	return edocuenta.TransactionDirectionDebit
 }
 
 func parseAbsoluteMoneyToken(value string) (int64, error) {
@@ -387,10 +430,10 @@ func validateCardTotals(transactions []edocuenta.Transaction, totalCargos, total
 	var cargos, abonos int64
 
 	for _, transaction := range transactions {
-		switch transaction.Kind {
-		case edocuenta.TransactionKindDebit:
+		switch transaction.Direction {
+		case edocuenta.TransactionDirectionDebit:
 			cargos += transaction.AmountCents
-		case edocuenta.TransactionKindCredit:
+		case edocuenta.TransactionDirectionCredit:
 			abonos += transaction.AmountCents
 		}
 	}

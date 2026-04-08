@@ -24,6 +24,12 @@ func TestParseSyntheticStatement(t *testing.T) {
 	if statement.AccountNumber != "1234567890" {
 		t.Fatalf("unexpected account %q", statement.AccountNumber)
 	}
+	if statement.AccountClass != "asset" {
+		t.Fatalf("unexpected account class %q", statement.AccountClass)
+	}
+	if statement.Summary != nil {
+		t.Fatalf("expected nil summary for synthetic statement, got %+v", statement.Summary)
+	}
 	if !statement.PeriodStart.Equal(time.Date(2026, 3, 1, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected period start %v", statement.PeriodStart)
 	}
@@ -33,8 +39,8 @@ func TestParseSyntheticStatement(t *testing.T) {
 	if len(statement.Transactions) != 2 {
 		t.Fatalf("expected 2 transactions, got %d", len(statement.Transactions))
 	}
-	if statement.Transactions[0].Kind != "credit" {
-		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Kind)
+	if statement.Transactions[0].Direction != "credit" {
+		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Direction)
 	}
 	if statement.Transactions[1].AmountCents != 250000 {
 		t.Fatalf("unexpected second amount %d", statement.Transactions[1].AmountCents)
@@ -57,6 +63,32 @@ func TestParseRealStyleStatement(t *testing.T) {
 	if statement.Currency != "MXN" {
 		t.Fatalf("unexpected currency %q", statement.Currency)
 	}
+	if statement.AccountClass != "asset" {
+		t.Fatalf("unexpected account class %q", statement.AccountClass)
+	}
+	if statement.Summary == nil {
+		t.Fatal("expected statement summary")
+	}
+	if statement.Summary.OpeningBalanceCents == nil || *statement.Summary.OpeningBalanceCents != 6331183 {
+		t.Fatalf("unexpected opening balance %+v", statement.Summary.OpeningBalanceCents)
+	}
+	if statement.Summary.ClosingBalanceCents == nil || *statement.Summary.ClosingBalanceCents != 4659196 {
+		t.Fatalf("unexpected closing balance %+v", statement.Summary.ClosingBalanceCents)
+	}
+	if statement.Summary.TotalDebitsCents == nil || *statement.Summary.TotalDebitsCents != 1671987 {
+		t.Fatalf("unexpected total debits %+v", statement.Summary.TotalDebitsCents)
+	}
+	if statement.Summary.TotalCreditsCents == nil || *statement.Summary.TotalCreditsCents != 0 {
+		t.Fatalf("unexpected total credits %+v", statement.Summary.TotalCreditsCents)
+	}
+	if statement.Summary.AverageBalanceCents != nil ||
+		statement.Summary.PaymentDueDate != nil ||
+		statement.Summary.MinimumPaymentCents != nil ||
+		statement.Summary.PaymentToAvoidInterestCents != nil ||
+		statement.Summary.CreditLimitCents != nil ||
+		statement.Summary.AvailableCreditCents != nil {
+		t.Fatalf("expected unsupported account summary fields to stay empty, got %+v", statement.Summary)
+	}
 	if !statement.PeriodStart.Equal(time.Date(2025, 12, 23, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected period start %v", statement.PeriodStart)
 	}
@@ -73,8 +105,8 @@ func TestParseRealStyleStatement(t *testing.T) {
 		t.Fatalf("unexpected third posted date %v", statement.Transactions[2].PostedAt)
 	}
 	for i, tx := range statement.Transactions {
-		if tx.Kind != "debit" {
-			t.Fatalf("transaction %d expected debit, got %q", i, tx.Kind)
+		if tx.Direction != "debit" {
+			t.Fatalf("transaction %d expected debit, got %q", i, tx.Direction)
 		}
 	}
 	if statement.Transactions[0].BalanceCents == nil || *statement.Transactions[0].BalanceCents != 4844196 {
@@ -95,14 +127,14 @@ func TestParseRealStyleStatementInfersMissingBalanceFromSummary(t *testing.T) {
 	if len(statement.Transactions) != 7 {
 		t.Fatalf("expected 7 transactions, got %d", len(statement.Transactions))
 	}
-	if statement.Transactions[3].Kind != "credit" {
-		t.Fatalf("expected inferred transfer to be credit, got %q", statement.Transactions[3].Kind)
+	if statement.Transactions[3].Direction != "credit" {
+		t.Fatalf("expected inferred transfer to be credit, got %q", statement.Transactions[3].Direction)
 	}
 	if statement.Transactions[3].BalanceCents == nil || *statement.Transactions[3].BalanceCents != 35919460 {
 		t.Fatalf("unexpected inferred balance %+v", statement.Transactions[3].BalanceCents)
 	}
-	if statement.Transactions[4].Kind != "debit" {
-		t.Fatalf("expected following transfer to be debit, got %q", statement.Transactions[4].Kind)
+	if statement.Transactions[4].Direction != "debit" {
+		t.Fatalf("expected following transfer to be debit, got %q", statement.Transactions[4].Direction)
 	}
 }
 
@@ -122,17 +154,17 @@ func TestParseRealStyleStatementRepairsAmountUsingRunningBalance(t *testing.T) {
 	if len(statement.Transactions) != 3 {
 		t.Fatalf("expected 3 transactions, got %d", len(statement.Transactions))
 	}
-	if statement.Transactions[0].Kind != "credit" {
-		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Kind)
+	if statement.Transactions[0].Direction != "credit" {
+		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Direction)
 	}
-	if statement.Transactions[1].Kind != "debit" {
-		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Kind)
+	if statement.Transactions[1].Direction != "debit" {
+		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Direction)
 	}
 	if statement.Transactions[1].AmountCents != 36830 {
 		t.Fatalf("unexpected repaired amount %d", statement.Transactions[1].AmountCents)
 	}
-	if statement.Transactions[2].Kind != "credit" {
-		t.Fatalf("unexpected third kind %q", statement.Transactions[2].Kind)
+	if statement.Transactions[2].Direction != "credit" {
+		t.Fatalf("unexpected third kind %q", statement.Transactions[2].Direction)
 	}
 }
 
@@ -161,11 +193,11 @@ func TestParseStatementFallsBackToCLABEAndSpacedCompactDates(t *testing.T) {
 	if len(statement.Transactions) != 2 {
 		t.Fatalf("expected 2 transactions, got %d", len(statement.Transactions))
 	}
-	if statement.Transactions[0].Kind != "credit" {
-		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Kind)
+	if statement.Transactions[0].Direction != "credit" {
+		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Direction)
 	}
-	if statement.Transactions[1].Kind != "debit" {
-		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Kind)
+	if statement.Transactions[1].Direction != "debit" {
+		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Direction)
 	}
 	if statement.Transactions[1].BalanceCents == nil || *statement.Transactions[1].BalanceCents != 100433 {
 		t.Fatalf("unexpected second balance %+v", statement.Transactions[1].BalanceCents)
@@ -188,6 +220,30 @@ func TestParseCreditCardStatement(t *testing.T) {
 	if statement.Currency != "MXN" {
 		t.Fatalf("unexpected currency %q", statement.Currency)
 	}
+	if statement.AccountClass != "liability" {
+		t.Fatalf("unexpected account class %q", statement.AccountClass)
+	}
+	if statement.Summary == nil {
+		t.Fatal("expected card summary")
+	}
+	if statement.Summary.TotalDebitsCents == nil || *statement.Summary.TotalDebitsCents != 41324 {
+		t.Fatalf("unexpected total debits %+v", statement.Summary.TotalDebitsCents)
+	}
+	if statement.Summary.TotalCreditsCents == nil || *statement.Summary.TotalCreditsCents != 1529764 {
+		t.Fatalf("unexpected total credits %+v", statement.Summary.TotalCreditsCents)
+	}
+	if statement.Summary.PaymentToAvoidInterestCents == nil || *statement.Summary.PaymentToAvoidInterestCents != 41324 {
+		t.Fatalf("unexpected payment to avoid interest %+v", statement.Summary.PaymentToAvoidInterestCents)
+	}
+	if statement.Summary.OpeningBalanceCents != nil ||
+		statement.Summary.ClosingBalanceCents != nil ||
+		statement.Summary.AverageBalanceCents != nil ||
+		statement.Summary.PaymentDueDate != nil ||
+		statement.Summary.MinimumPaymentCents != nil ||
+		statement.Summary.CreditLimitCents != nil ||
+		statement.Summary.AvailableCreditCents != nil {
+		t.Fatalf("expected unsupported card summary fields to stay empty, got %+v", statement.Summary)
+	}
 	if !statement.PeriodStart.Equal(time.Date(2026, 2, 25, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected period start %v", statement.PeriodStart)
 	}
@@ -197,11 +253,11 @@ func TestParseCreditCardStatement(t *testing.T) {
 	if len(statement.Transactions) != 3 {
 		t.Fatalf("expected 3 transactions, got %d", len(statement.Transactions))
 	}
-	if statement.Transactions[0].Kind != "credit" {
-		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Kind)
+	if statement.Transactions[0].Direction != "credit" {
+		t.Fatalf("unexpected first kind %q", statement.Transactions[0].Direction)
 	}
-	if statement.Transactions[1].Kind != "debit" {
-		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Kind)
+	if statement.Transactions[1].Direction != "debit" {
+		t.Fatalf("unexpected second kind %q", statement.Transactions[1].Direction)
 	}
 	if statement.Transactions[2].AmountCents != 19456 {
 		t.Fatalf("unexpected third amount %d", statement.Transactions[2].AmountCents)

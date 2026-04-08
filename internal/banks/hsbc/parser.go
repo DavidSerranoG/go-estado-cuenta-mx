@@ -110,6 +110,7 @@ func parseCardResult(text string) (edocuenta.ParseResult, error) {
 			Currency:      edocuenta.CurrencyMXN,
 			PeriodStart:   periodStart,
 			PeriodEnd:     periodEnd,
+			AccountClass:  edocuenta.AccountClassLiability,
 			Transactions:  transactions,
 		},
 		Warnings: warnings,
@@ -317,7 +318,7 @@ func parseSplitOCRCardTransaction(lines []string, start int, carry []string, per
 			return edocuenta.Transaction{
 				PostedAt:    postedAt,
 				Description: description,
-				Kind:        movementType(sign),
+				Direction:   movementType(sign),
 				AmountCents: amountCents,
 			}, i, true, nil
 		}
@@ -355,7 +356,7 @@ func parseOCRCardTransaction(line string, carry []string, periodStart, periodEnd
 	return edocuenta.Transaction{
 		PostedAt:    postedAt,
 		Description: description,
-		Kind:        movementType(sign),
+		Direction:   movementType(sign),
 		AmountCents: amountCents,
 	}, true, nil
 }
@@ -780,7 +781,7 @@ func parseFullTransaction(line string) (edocuenta.Transaction, bool, error) {
 	return edocuenta.Transaction{
 		PostedAt:    postedAt,
 		Description: normalize.CollapseWhitespace(match[3]),
-		Kind:        movementType(match[4]),
+		Direction:   movementType(match[4]),
 		AmountCents: amountCents,
 	}, true, nil
 }
@@ -826,7 +827,7 @@ func completePending(pending pendingTransaction, line string) (edocuenta.Transac
 	return edocuenta.Transaction{
 		PostedAt:    pending.postedAt,
 		Description: description,
-		Kind:        movementType(match[2]),
+		Direction:   movementType(match[2]),
 		AmountCents: amountCents,
 	}, true, nil
 }
@@ -839,11 +840,11 @@ func parseSpanishDate(value string) (time.Time, error) {
 	return parsed, nil
 }
 
-func movementType(sign string) edocuenta.TransactionKind {
+func movementType(sign string) edocuenta.TransactionDirection {
 	if sign == "-" {
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	}
-	return edocuenta.TransactionKindDebit
+	return edocuenta.TransactionDirectionDebit
 }
 
 func hsbcDetectionScore(text string) int {
@@ -933,6 +934,8 @@ func parseFlexibleResult(text string) (edocuenta.ParseResult, error) {
 			Currency:      edocuenta.CurrencyMXN,
 			PeriodStart:   periodStart,
 			PeriodEnd:     periodEnd,
+			AccountClass:  edocuenta.AccountClassAsset,
+			Summary:       buildFlexibleSummary(text, initialBalance),
 			Transactions:  transactions,
 		},
 		Warnings: warnings,
@@ -998,6 +1001,36 @@ func parseFlexibleInitialBalance(text string) (int64, error) {
 	}
 
 	return normalize.ParseMoneyToCents(match[1])
+}
+
+func parseFlexibleClosingBalance(text string) (*int64, bool) {
+	match := flexibleClosingPattern.FindStringSubmatch(text)
+	if len(match) != 2 {
+		return nil, false
+	}
+
+	value, err := normalize.ParseMoneyToCents(match[1])
+	if err != nil {
+		return nil, false
+	}
+
+	return &value, true
+}
+
+func buildFlexibleSummary(text string, initialBalance int64) *edocuenta.StatementSummary {
+	summary := &edocuenta.StatementSummary{
+		OpeningBalanceCents: int64Ptr(initialBalance),
+	}
+
+	if closingBalance, ok := parseFlexibleClosingBalance(text); ok {
+		summary.ClosingBalanceCents = closingBalance
+	}
+
+	return summary
+}
+
+func int64Ptr(value int64) *int64 {
+	return &value
 }
 
 func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, initialBalance int64) ([]edocuenta.Transaction, []string, error) {
@@ -1110,7 +1143,7 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 			PostedAt:     postedAt,
 			Description:  description,
 			Reference:    txReference,
-			Kind:         txType,
+			Direction:    txType,
 			AmountCents:  amountCents,
 			BalanceCents: &balanceCopy,
 		})
@@ -1302,16 +1335,16 @@ func inferFlexibleDate(day string, periodStart, periodEnd time.Time) (time.Time,
 	return time.Date(periodEnd.Year(), periodEnd.Month(), dayInt, 0, 0, 0, 0, time.UTC), nil
 }
 
-func inferFlexibleMovementType(prevBalance, amountCents, balanceCents int64, description string) edocuenta.TransactionKind {
+func inferFlexibleMovementType(prevBalance, amountCents, balanceCents int64, description string) edocuenta.TransactionDirection {
 	switch {
 	case prevBalance+amountCents == balanceCents:
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	case prevBalance-amountCents == balanceCents:
-		return edocuenta.TransactionKindDebit
+		return edocuenta.TransactionDirectionDebit
 	case strings.Contains(strings.ToUpper(description), "PAGO DE TARJETA"):
-		return edocuenta.TransactionKindDebit
+		return edocuenta.TransactionDirectionDebit
 	default:
-		return edocuenta.TransactionKindCredit
+		return edocuenta.TransactionDirectionCredit
 	}
 }
 

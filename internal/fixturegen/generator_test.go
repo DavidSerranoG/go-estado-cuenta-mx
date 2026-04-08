@@ -295,7 +295,7 @@ func TestSanitizeContextIsDeterministic(t *testing.T) {
 					PostedAt:    time.Date(2025, 9, 17, 0, 0, 0, 0, time.UTC),
 					Description: "SERV GAS PREMIER",
 					Reference:   "ABC123456789",
-					Kind:        edocuenta.TransactionKindDebit,
+					Direction:   edocuenta.TransactionDirectionDebit,
 					AmountCents: 86807,
 				},
 			},

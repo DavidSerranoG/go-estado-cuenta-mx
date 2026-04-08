@@ -16,6 +16,19 @@ See [BBVA bank notes](banks/bbva.md).
 
 See [HSBC bank notes](banks/hsbc.md).
 
+## Public summary coverage
+
+| Bank | Layout | AccountClass | Summary fields |
+| --- | --- | --- | --- |
+| BBVA | account statement | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
+| BBVA | credit card statement | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
+| HSBC | Cuenta Flexible | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents` |
+| HSBC | credit card statement | `liability` | none yet |
+
+`AccountClass` describes the statement account in accounting terms.
+`Transaction.Direction` describes the debit or credit direction of each movement.
+They are related but intentionally different pieces of public API.
+
 ## Extraction caveats
 
 - Default parsing does not enable OCR automatically

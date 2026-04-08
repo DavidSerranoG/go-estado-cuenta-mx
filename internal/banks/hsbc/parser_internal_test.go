@@ -72,8 +72,8 @@ func TestParseSplitOCRCardTransactionAcceptsSplitSignAndAmountLines(t *testing.T
 	if tx.AmountCents != 122100 {
 		t.Fatalf("unexpected amount %d", tx.AmountCents)
 	}
-	if tx.Kind != "debit" {
-		t.Fatalf("unexpected kind %q", tx.Kind)
+	if tx.Direction != "debit" {
+		t.Fatalf("unexpected kind %q", tx.Direction)
 	}
 	if !tx.PostedAt.Equal(time.Date(2025, 4, 7, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("unexpected posted date %v", tx.PostedAt)
