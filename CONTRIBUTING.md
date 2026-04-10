@@ -13,6 +13,8 @@ This repository focuses on parsing Mexican bank statement PDFs into a normalized
 5. Use `go run ./cmd/edocuenta-eval -root .tmp/real-pdfs` when you change extraction or OCR behavior.
 6. Use `go run ./cmd/edocuenta-fixturegen -input .tmp/real-pdfs -output testdata -mode both` when you refresh public dummy fixtures.
 
+Detailed maintainer commands live in [docs/development.md](docs/development.md).
+
 ## Design Notes
 
 - `Statement` and `Transaction` are clean public domain types.

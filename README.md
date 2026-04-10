@@ -1,12 +1,26 @@
 # go-estado-cuenta-mx
 
-`go-estado-cuenta-mx` is a Go library for parsing Mexican bank statement PDFs into a normalized domain model.
+`go-estado-cuenta-mx` is a Go library for parsing Mexican bank statement PDFs
+into a normalized domain model.
 
 - Module path: `github.com/DavidSerranoG/go-estado-cuenta-mx`
 - Recommended import alias: `edocuenta`
 - Recommended external entrypoint: `supported.New()`
 
-The project is still pre-1.0 and intentionally allows breaking changes while the OSS API is being cleaned up.
+The project is pre-1.0. Public package names are stabilizing, but parser
+coverage and some pre-v1 behavior can still change as supported layouts expand.
+
+## What This Repository Is
+
+This repository is focused on one job: convert supported Mexican bank statement
+PDFs into a clean Go data model that is easier to consume than raw PDF text.
+
+It is intentionally not:
+
+- a general OCR framework
+- a banking integration
+- a persistence layer
+- a financial reconciliation system
 
 ## Installation
 
@@ -44,7 +58,8 @@ func main() {
 }
 ```
 
-For advanced callers that need warnings and extracted text:
+For advanced callers that need warnings, extraction diagnostics, or extracted
+text:
 
 ```go
 result, err := supported.New().ParsePDFResult(ctx, pdfBytes)
@@ -58,53 +73,13 @@ _ = result.Extraction
 _ = result.ExtractedText
 ```
 
-Example output shape:
-
-```json
-{
-  "Statement": {
-    "Bank": "hsbc",
-    "AccountNumber": "6529009644",
-    "Currency": "MXN",
-    "PeriodStart": "2025-10-01T00:00:00Z",
-    "PeriodEnd": "2025-10-31T00:00:00Z",
-    "AccountClass": "asset",
-    "Summary": {
-      "OpeningBalanceCents": 659573,
-      "ClosingBalanceCents": 759573
-    },
-    "Transactions": [
-      {
-        "PostedAt": "2025-10-20T00:00:00Z",
-        "Description": "A MI HSBC",
-        "Reference": "081025008045221/201345",
-        "Direction": "credit",
-        "AmountCents": 3600000,
-        "BalanceCents": 4259573
-      }
-    ]
-  },
-  "Warnings": [],
-  "Extraction": {
-    "SelectedExtractor": "ledongthuc",
-    "UsedRescue": false,
-    "Attempts": [
-      {
-        "Extractor": "ledongthuc",
-        "Status": "succeeded",
-        "Message": "extractor produced usable text"
-      }
-    ]
-  },
-  "ExtractedText": "..."
-}
-```
-
 ## Supported Banks
 
-| Bank | Layouts | Notes |
+Coverage is layout-specific, not bank-wide.
+
+| Bank | Supported layouts | Notes |
 | --- | --- | --- |
-| BBVA | account statements, credit card statements | CLABE fallback and OCR rescue supported |
+| BBVA | account statements, credit card statements | CLABE fallback and rescue OCR supported |
 | HSBC | credit card statements, Cuenta Flexible | OCR-heavy card flows supported |
 
 Detailed notes:
@@ -116,7 +91,13 @@ Detailed notes:
 
 ## Public API
 
-`Statement` is the clean domain model:
+The main domain types are:
+
+- `Statement`
+- `Transaction`
+- `ParseResult`
+
+`Statement` includes:
 
 - `Bank`
 - `AccountNumber`
@@ -127,31 +108,24 @@ Detailed notes:
 - `Summary`
 - `Transactions`
 
-`AccountClass` uses accounting terminology:
+`AccountClass` describes the account itself:
 
 - `asset`
 - `liability`
 
-`Transaction` uses normalized directions:
+`Transaction.Direction` describes each movement:
 
 - `debit`
 - `credit`
 
-`Summary` is optional and only contains fields explicitly exposed by the source
-statement, such as opening and closing balances, debit and credit totals, or
-card payment metadata.
+`Summary` is optional and only exposes values clearly present in the source
+statement, such as balances, totals, or card payment metadata.
 
 Diagnostics live in `ParseResult`, not in `Statement`.
 
-`ParseResult.Extraction` tells you which extractor candidate won, whether a rescue
-extractor was ultimately selected, and which attempts were made along the way.
-
-`AccountClass` describes the statement account itself. `Transaction.Direction`
-describes each individual movement. They are intentionally separate concepts.
-
 ## Extraction Strategy
 
-Default extraction is intentionally lightweight and predictable:
+Default extraction stays intentionally small and predictable:
 
 - `ledongthuc` first
 - `pdftotext` second when available on the host
@@ -186,55 +160,23 @@ Available public extractor constructors:
 | Vision OCR | `swift` on macOS | no |
 | Tesseract OCR rescue | `tesseract` and `gs` | no |
 
-## Local Validation
+## Limits and Privacy
 
-Real PDFs stay local under `.tmp/real-pdfs/` and are not part of the default suite.
+- This project is not affiliated with BBVA, HSBC, or any other bank.
+- Support is limited to the documented statement layouts. Unsupported or heavily
+  degraded PDFs can fail or produce incomplete output.
+- OCR is not enabled automatically and depends on host tooling when configured.
+- Do not open issues or pull requests with real or unredacted bank statements.
+  Share only sanitized text or sanitized fixtures.
 
-```bash
-go test ./...
-go run ./cmd/edocuenta-eval -root .tmp/real-pdfs -format markdown
-go test -tags realpdfs ./bbva -run TestParseLocalRealPDFs -count=1 -v
-go test -tags realpdfs ./hsbc -run TestParseLocalRealPDFs -count=1 -v
-```
+## Development Tooling
 
-If you organize your private corpus as `.tmp/real-pdfs/<bank>/<layout>/*.pdf`,
-`edocuenta-eval` will summarize results by bank and layout automatically.
+This repository includes maintainer tooling for evaluating parsers against a
+private local corpus and generating sanitized dummy fixtures. Those commands are
+for development workflows, not part of the main public API.
 
-## Dummy Fixture Generation
-
-`edocuenta-fixturegen` turns local real PDFs into sanitized dummy fixtures with a
-searchable text layer and sidecar metadata.
-
-Recommended flow:
-
-```bash
-go run ./cmd/edocuenta-fixturegen \
-  -input .tmp/real-pdfs \
-  -output testdata \
-  -mode both \
-  -branding mixed
-```
-
-This writes:
-
-- public fixtures under `testdata/public-pdfs/<bank>/<layout>/`
-- local-only fixtures under `testdata/local-pdfs/<bank>/<layout>/`
-- JSON sidecars with replacement counts, hashes, fidelity, and validation results
-
-Public mode requires high-fidelity generation by default. If the host is missing
-`pdftotext -bbox-layout` or a rasterizer such as `pdftocairo`, the command fails
-instead of silently emitting low-fidelity public fixtures.
-
-Optional tooling used by `fixturegen`:
-
-| Feature | Dependency |
-| --- | --- |
-| layout text boxes | `pdftotext -bbox-layout` |
-| raster background | `pdftocairo`, `gs`, or PDFKit via `swift` on macOS |
-
-Override files live under `testdata/fixturegen/overrides/<bank>/<layout>.json`.
-Use them for logo regions, fixed headers, or file-specific replacements that the
-automatic sanitizer should not guess.
+See [Development notes](docs/development.md) for local validation, real-PDF
+testing, and fixture generation.
 
 ## Project Layout
 
