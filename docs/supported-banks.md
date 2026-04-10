@@ -1,36 +1,37 @@
-# Supported Banks and Known Limits
+# Bancos Soportados Y Límites Conocidos
 
 ## BBVA
 
-- Supported layouts: account statements, credit card statements
-- Highlights: CLABE fallback, compact row parsing, OCR continuation stitching for card statements
-- Known limits: highly degraded OCR can still lose short dates or totals
+- Layouts soportados: estados de cuenta, estados de cuenta de tarjeta de crédito
+- Aspectos destacados: fallback por CLABE, parseo compacto de renglones y unión de continuaciones OCR en estados de tarjeta
+- Límites conocidos: el OCR muy degradado todavía puede perder fechas cortas o totales
 
-See [BBVA bank notes](banks/bbva.md).
+Consulta las [notas bancarias de BBVA](banks/bbva.md).
 
 ## HSBC
 
-- Supported layouts: credit card statements, Cuenta Flexible
-- Highlights: compact card rows, split OCR rows, appendix cutoff for Cuenta Flexible
-- Known limits: OCR-damaged date cues can still drop movements
+- Layouts soportados: estados de cuenta de tarjeta de crédito, Cuenta Flexible
+- Aspectos destacados: renglones compactos de tarjeta, renglones OCR divididos y corte de apéndices en Cuenta Flexible
+- Límites conocidos: las pistas de fecha dañadas por OCR todavía pueden hacer que se pierdan movimientos
 
-See [HSBC bank notes](banks/hsbc.md).
+Consulta las [notas bancarias de HSBC](banks/hsbc.md).
 
-## Public summary coverage
+## Cobertura Pública De `Summary`
 
-| Bank | Layout | AccountClass | Summary fields |
+| Banco | Layout | `AccountClass` | Campos de `Summary` |
 | --- | --- | --- | --- |
-| BBVA | account statement | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
-| BBVA | credit card statement | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
+| BBVA | estado de cuenta | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
+| BBVA | estado de cuenta de tarjeta de crédito | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
 | HSBC | Cuenta Flexible | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents` |
-| HSBC | credit card statement | `liability` | none yet |
+| HSBC | estado de cuenta de tarjeta de crédito | `liability` | ninguno por ahora |
 
-`AccountClass` describes the statement account in accounting terms.
-`Transaction.Direction` describes the debit or credit direction of each movement.
-They are related but intentionally different pieces of public API.
+`AccountClass` describe la cuenta del estado en términos contables.
+`Transaction.Direction` describe la dirección de débito o crédito de cada
+movimiento. Están relacionados, pero son piezas intencionalmente distintas de
+la API pública.
 
-## Extraction caveats
+## Consideraciones Sobre Extracción
 
-- Default parsing does not enable OCR automatically
-- `pdftotext`, Vision OCR, and Tesseract are optional host dependencies
-- Real-world coverage is best measured with synthetic fixtures plus local real-PDF validation
+- el parseo por defecto no habilita OCR automáticamente
+- `pdftotext`, Vision OCR y Tesseract son dependencias opcionales del host
+- la cobertura real se mide mejor con fixtures sintéticos más validación local con PDFs reales

@@ -1,20 +1,21 @@
-# Development Notes
+# Notas De Desarrollo
 
-These commands are for maintainers working on parser behavior, extraction
-quality, and sanitized fixture refreshes. They are not required for normal use
-of the library.
+Estos comandos son para personas mantenedoras que trabajan en el comportamiento
+de los parsers, la calidad de extracción y la actualización de fixtures
+sanitizados. No son necesarios para el uso normal de la librería.
 
-## Local Validation
+## Validación Local
 
-Default validation:
+Validación por defecto:
 
 ```bash
 go test ./...
 go vet ./...
 ```
 
-Real bank statements stay local under `.tmp/real-pdfs/` and are intentionally
-excluded from the default suite.
+Los estados de cuenta bancarios reales permanecen locales en
+`.tmp/real-pdfs/` y están excluidos de forma intencional del suite por
+defecto.
 
 ```bash
 go run ./cmd/edocuenta-eval -root .tmp/real-pdfs -format markdown
@@ -22,15 +23,15 @@ go test -tags realpdfs ./bbva -run TestParseLocalRealPDFs -count=1 -v
 go test -tags realpdfs ./hsbc -run TestParseLocalRealPDFs -count=1 -v
 ```
 
-If you organize your private corpus as `.tmp/real-pdfs/<bank>/<layout>/*.pdf`,
-`edocuenta-eval` will summarize results by bank and layout automatically.
+Si organizas tu corpus privado como `.tmp/real-pdfs/<bank>/<layout>/*.pdf`,
+`edocuenta-eval` resumirá los resultados por banco y layout automáticamente.
 
-## Dummy Fixture Generation
+## Generación De Fixtures Dummy
 
-`edocuenta-fixturegen` turns local real PDFs into sanitized dummy fixtures with
-a searchable text layer and sidecar metadata.
+`edocuenta-fixturegen` convierte PDFs reales locales en fixtures dummy
+sanitizados con una capa de texto indexable y metadata sidecar.
 
-Recommended flow:
+Flujo recomendado:
 
 ```bash
 go run ./cmd/edocuenta-fixturegen \
@@ -40,31 +41,30 @@ go run ./cmd/edocuenta-fixturegen \
   -branding mixed
 ```
 
-This writes:
+Eso escribe:
 
-- public fixtures under `testdata/public-pdfs/<bank>/<layout>/`
-- local-only fixtures under `testdata/local-pdfs/<bank>/<layout>/`
-- JSON sidecars with replacement counts, hashes, fidelity, and validation
-  results
+- fixtures públicos en `testdata/public-pdfs/<bank>/<layout>/`
+- fixtures solo locales en `testdata/local-pdfs/<bank>/<layout>/`
+- sidecars JSON con conteos de reemplazo, hashes, fidelidad y resultados de validación
 
-Public mode requires high-fidelity generation by default. If the host is
-missing `pdftotext -bbox-layout` or a rasterizer such as `pdftocairo`, the
-command fails instead of silently emitting low-fidelity public fixtures.
+El modo público exige generación de alta fidelidad por defecto. Si al host le
+falta `pdftotext -bbox-layout` o un rasterizador como `pdftocairo`, el comando
+falla en lugar de emitir silenciosamente fixtures públicos de baja fidelidad.
 
-Optional tooling used by `fixturegen`:
+Herramientas opcionales usadas por `fixturegen`:
 
-| Feature | Dependency |
+| Función | Dependencia |
 | --- | --- |
-| layout text boxes | `pdftotext -bbox-layout` |
-| raster background | `pdftocairo`, `gs`, or PDFKit via `swift` on macOS |
+| cajas de texto del layout | `pdftotext -bbox-layout` |
+| fondo rasterizado | `pdftocairo`, `gs` o PDFKit vía `swift` en macOS |
 
-Override files live under `testdata/fixturegen/overrides/<bank>/<layout>.json`.
-Use them for logo regions, fixed headers, or file-specific replacements that
-the automatic sanitizer should not guess.
+Los archivos de overrides viven bajo
+`testdata/fixturegen/overrides/<bank>/<layout>.json`. Úsalos para regiones de
+logotipos, encabezados fijos o reemplazos específicos por archivo que el
+sanitizador automático no debería adivinar.
 
-## Privacy Rules
+## Reglas De Privacidad
 
-- Never commit real bank statements.
-- Never attach unredacted statements to issues or pull requests.
-- Keep local-only dummy PDFs under `testdata/local-pdfs/`; that path is ignored
-  by Git.
+- Nunca hagas commit de estados de cuenta reales.
+- Nunca adjuntes estados de cuenta sin redacción a issues o pull requests.
+- Mantén los PDFs dummy solo locales bajo `testdata/local-pdfs/`; Git ignora esa ruta.

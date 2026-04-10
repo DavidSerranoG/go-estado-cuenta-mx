@@ -1,29 +1,34 @@
-# Contributing
+# Contribuir
 
-## Scope
+## Alcance
 
-This repository focuses on parsing Mexican bank statement PDFs into a normalized Go domain model. Keep new contributions aligned with that scope.
+Este repositorio está enfocado en parsear PDFs de estados de cuenta bancarios
+de México a un modelo de dominio normalizado en Go. Mantén las contribuciones
+alineadas con ese alcance.
 
-## Workflow
+## Flujo de Trabajo
 
-1. Add or update synthetic fixtures and tests first.
-2. Keep parser changes isolated by bank and layout when possible.
-3. Avoid introducing host-specific dependencies into the default path.
-4. Run `go test ./...` before opening a PR.
-5. Use `go run ./cmd/edocuenta-eval -root .tmp/real-pdfs` when you change extraction or OCR behavior.
-6. Use `go run ./cmd/edocuenta-fixturegen -input .tmp/real-pdfs -output testdata -mode both` when you refresh public dummy fixtures.
+1. Agrega o actualiza primero los fixtures sintéticos y las pruebas.
+2. Mantén los cambios de parser aislados por banco y layout cuando sea posible.
+3. Evita introducir dependencias específicas del host en la ruta por defecto.
+4. Ejecuta `go test ./...` antes de abrir un PR.
+5. Usa `go run ./cmd/edocuenta-eval -root .tmp/real-pdfs` cuando cambies el comportamiento de extracción u OCR.
+6. Usa `go run ./cmd/edocuenta-fixturegen -input .tmp/real-pdfs -output testdata -mode both` cuando actualices los fixtures dummy públicos.
 
-Detailed maintainer commands live in [docs/development.md](docs/development.md).
+Los comandos detallados para personas mantenedoras viven en
+[docs/development.md](docs/development.md).
 
-## Design Notes
+## Notas De Diseño
 
-- `Statement` and `Transaction` are clean public domain types.
-- Parser warnings and extracted text belong in `ParseResult`.
-- Extractor selection and attempt history belong in `ParseResult.Extraction`.
-- OCR is opt-in and should stay explicitly documented.
+- `Statement` y `Transaction` son tipos limpios de dominio público.
+- Las advertencias del parser y el texto extraído pertenecen a `ParseResult`.
+- La selección del extractor y el historial de intentos pertenecen a `ParseResult.Extraction`.
+- OCR es opt-in y debe quedar documentado de forma explícita.
 
-## Real PDFs
+## PDFs Reales
 
-Never commit real bank statements. Use `.tmp/real-pdfs/` locally with the `realpdfs` build tag.
+Nunca hagas commit de estados de cuenta reales. Usa `.tmp/real-pdfs/` de forma
+local con el build tag `realpdfs`.
 
-Generated local-only dummy PDFs belong under `testdata/local-pdfs/` and are ignored by Git.
+Los PDFs dummy solo locales generados pertenecen a `testdata/local-pdfs/` y
+Git los ignora.

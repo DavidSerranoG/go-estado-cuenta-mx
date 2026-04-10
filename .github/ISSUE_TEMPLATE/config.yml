@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Security policy
+  - name: Política de seguridad
     url: https://github.com/DavidSerranoG/go-estado-cuenta-mx/security/policy
-    about: Use private channels for security issues and never include real statement data.
+    about: Usa canales privados para reportar problemas de seguridad y nunca incluyas datos reales de estados de cuenta.

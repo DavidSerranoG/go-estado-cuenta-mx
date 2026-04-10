@@ -1,31 +1,31 @@
-# Stability and Compatibility
+# Estabilidad Y Compatibilidad
 
-This project is currently pre-1.0.
+Este proyecto está actualmente en pre-1.0.
 
-## What is stable enough to build on
+## Qué Ya Es Lo Bastante Estable Para Usarlo Como Base
 
-- The root package import alias `edocuenta`
-- The `supported` package as the default external entrypoint
-- The public domain types `Statement`, `Transaction`, `ParseResult`, and `ParseResult.Extraction`
-- The built-in parser facades in `bbva` and `hsbc`
+- el alias de importación `edocuenta` del paquete raíz
+- el paquete `supported` como punto de entrada externo por defecto
+- los tipos públicos de dominio `Statement`, `Transaction`, `ParseResult` y `ParseResult.Extraction`
+- las fachadas integradas de parser en `bbva` y `hsbc`
 
-Current public terminology:
+Terminología pública actual:
 
-- `Statement.AccountClass` classifies the account as `asset` or `liability`
-- `Transaction.Direction` classifies each movement as `debit` or `credit`
-- `Statement.Summary` exposes optional statement-level balances, totals, and payment metadata
+- `Statement.AccountClass` clasifica la cuenta como `asset` o `liability`
+- `Transaction.Direction` clasifica cada movimiento como `debit` o `credit`
+- `Statement.Summary` expone saldos, totales y metadata de pagos a nivel estado cuando son opcionales y están disponibles
 
-## What may still change
+## Qué Todavía Puede Cambiar
 
-- Internal package layout
-- Parser heuristics and warning strings
-- OCR integrations and extractor tuning
-- Exact coverage by bank layout
-- Additional summary fields as more layouts are supported
+- el layout interno de paquetes
+- las heurísticas del parser y los textos de advertencia
+- las integraciones de OCR y el tuning de extractores
+- la cobertura exacta por banco y layout
+- campos adicionales de `Summary` conforme se soporten más layouts
 
-## Versioning policy
+## Política De Versionado
 
-- Breaking changes are allowed before `v1.0.0`
-- Behavior fixes for parsers may change normalized output when the current output is incorrect
-- Future release notes should call out parser-level behavior changes explicitly
-- Public naming cleanups, such as `Transaction.Direction`, may still happen before `v1.0.0`
+- los cambios incompatibles están permitidos antes de `v1.0.0`
+- las correcciones de comportamiento en parsers pueden cambiar la salida normalizada cuando la salida actual es incorrecta
+- las notas de futuras versiones deberían señalar explícitamente los cambios de comportamiento a nivel parser
+- todavía pueden ocurrir limpiezas de nombres públicos, como `Transaction.Direction`, antes de `v1.0.0`
