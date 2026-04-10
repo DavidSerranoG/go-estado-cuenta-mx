@@ -1,34 +1,36 @@
 # go-estado-cuenta-mx
 
-`go-estado-cuenta-mx` is a Go library for parsing Mexican bank statement PDFs
-into a normalized domain model.
+`go-estado-cuenta-mx` es una biblioteca en Go para parsear PDFs de estados de
+cuenta bancarios de México a un modelo de dominio normalizado.
 
-- Module path: `github.com/DavidSerranoG/go-estado-cuenta-mx`
-- Recommended import alias: `edocuenta`
-- Recommended external entrypoint: `supported.New()`
+- Ruta del módulo: `github.com/DavidSerranoG/go-estado-cuenta-mx`
+- Alias de importación recomendado: `edocuenta`
+- Punto de entrada externo recomendado: `supported.New()`
 
-The project is pre-1.0. Public package names are stabilizing, but parser
-coverage and some pre-v1 behavior can still change as supported layouts expand.
+El proyecto sigue en pre-1.0. Los nombres públicos de los paquetes se están
+estabilizando, pero la cobertura de parsers y algunos comportamientos previos a
+v1 todavía pueden cambiar conforme se amplíen los layouts soportados.
 
-## What This Repository Is
+## Qué Hace Este Repositorio
 
-This repository is focused on one job: convert supported Mexican bank statement
-PDFs into a clean Go data model that is easier to consume than raw PDF text.
+Este repositorio está enfocado en una sola tarea: convertir PDFs soportados de
+estados de cuenta bancarios de México en un modelo de datos limpio en Go, más
+fácil de consumir que el texto crudo del PDF.
 
-It is intentionally not:
+Intencionalmente no pretende ser:
 
-- a general OCR framework
-- a banking integration
-- a persistence layer
-- a financial reconciliation system
+- un framework general de OCR
+- una integración bancaria
+- una capa de persistencia
+- un sistema de conciliación financiera
 
-## Installation
+## Instalación
 
 ```bash
 go get github.com/DavidSerranoG/go-estado-cuenta-mx
 ```
 
-## Quick Start
+## Inicio Rápido
 
 ```go
 package main
@@ -58,8 +60,8 @@ func main() {
 }
 ```
 
-For advanced callers that need warnings, extraction diagnostics, or extracted
-text:
+Para casos más avanzados donde necesites advertencias, diagnósticos de
+extracción o el texto extraído:
 
 ```go
 result, err := supported.New().ParsePDFResult(ctx, pdfBytes)
@@ -73,31 +75,31 @@ _ = result.Extraction
 _ = result.ExtractedText
 ```
 
-## Supported Banks
+## Bancos Soportados
 
-Coverage is layout-specific, not bank-wide.
+La cobertura depende del layout, no del banco completo.
 
-| Bank | Supported layouts | Notes |
+| Banco | Layouts soportados | Notas |
 | --- | --- | --- |
-| BBVA | account statements, credit card statements | CLABE fallback and rescue OCR supported |
-| HSBC | credit card statements, Cuenta Flexible | OCR-heavy card flows supported |
+| BBVA | estados de cuenta, estados de cuenta de tarjeta de crédito | Soporta fallback por CLABE y OCR de rescate |
+| HSBC | estados de cuenta de tarjeta de crédito, Cuenta Flexible | Soporta flujos de tarjeta con OCR intensivo |
 
-Detailed notes:
+Notas detalladas:
 
 - [BBVA](docs/banks/bbva.md)
 - [HSBC](docs/banks/hsbc.md)
-- [Supported banks and limits](docs/supported-banks.md)
-- [Stability and compatibility](docs/stability.md)
+- [Bancos soportados y límites](docs/supported-banks.md)
+- [Estabilidad y compatibilidad](docs/stability.md)
 
-## Public API
+## API Pública
 
-The main domain types are:
+Los tipos de dominio principales son:
 
 - `Statement`
 - `Transaction`
 - `ParseResult`
 
-`Statement` includes:
+`Statement` incluye:
 
 - `Bank`
 - `AccountNumber`
@@ -108,29 +110,29 @@ The main domain types are:
 - `Summary`
 - `Transactions`
 
-`AccountClass` describes the account itself:
+`AccountClass` describe la cuenta en sí:
 
 - `asset`
 - `liability`
 
-`Transaction.Direction` describes each movement:
+`Transaction.Direction` describe cada movimiento:
 
 - `debit`
 - `credit`
 
-`Summary` is optional and only exposes values clearly present in the source
-statement, such as balances, totals, or card payment metadata.
+`Summary` es opcional y solo expone valores claramente presentes en el estado
+de cuenta de origen, como saldos, totales o metadatos de pagos de tarjeta.
 
-Diagnostics live in `ParseResult`, not in `Statement`.
+Los diagnósticos viven en `ParseResult`, no en `Statement`.
 
-## Extraction Strategy
+## Estrategia de Extracción
 
-Default extraction stays intentionally small and predictable:
+La extracción por defecto se mantiene intencionalmente pequeña y predecible:
 
-- `ledongthuc` first
-- `pdftotext` second when available on the host
+- `ledongthuc` primero
+- `pdftotext` después, cuando el binario está disponible en el host
 
-OCR is opt-in. To enable rescue OCR:
+OCR se habilita de forma explícita. Para activar OCR de rescate:
 
 ```go
 import (
@@ -143,7 +145,7 @@ processor := supported.New(
 )
 ```
 
-Available public extractor constructors:
+Constructores públicos de extractores disponibles:
 
 - `NewLedongthucExtractor()`
 - `NewPdftotextExtractor()`
@@ -151,34 +153,36 @@ Available public extractor constructors:
 - `NewTesseractExtractor()`
 - `NewTextExtractorChain(...)`
 
-## Optional Dependencies
+## Dependencias Opcionales
 
-| Feature | Dependency | Required by default |
+| Función | Dependencia | Obligatoria por defecto |
 | --- | --- | --- |
-| Go-native text extraction | Go only | yes |
-| `pdftotext` fallback | `pdftotext` binary | no |
-| Vision OCR | `swift` on macOS | no |
-| Tesseract OCR rescue | `tesseract` and `gs` | no |
+| Extracción de texto nativa en Go | Solo Go | sí |
+| Fallback con `pdftotext` | Binario `pdftotext` | no |
+| OCR con Vision | `swift` en macOS | no |
+| OCR de rescate con Tesseract | `tesseract` y `gs` | no |
 
-## Limits and Privacy
+## Límites y Privacidad
 
-- This project is not affiliated with BBVA, HSBC, or any other bank.
-- Support is limited to the documented statement layouts. Unsupported or heavily
-  degraded PDFs can fail or produce incomplete output.
-- OCR is not enabled automatically and depends on host tooling when configured.
-- Do not open issues or pull requests with real or unredacted bank statements.
-  Share only sanitized text or sanitized fixtures.
+- Este proyecto no está afiliado con BBVA, HSBC ni con ningún otro banco.
+- El soporte está limitado a los layouts documentados. Los PDFs no soportados o
+  muy degradados pueden fallar o producir salidas incompletas.
+- OCR no se habilita automáticamente y depende de herramientas del host cuando
+  se configura.
+- No abras issues ni pull requests con estados de cuenta reales o sin redactar.
+  Comparte solo texto sanitizado o fixtures sanitizados.
 
-## Development Tooling
+## Herramientas de Desarrollo
 
-This repository includes maintainer tooling for evaluating parsers against a
-private local corpus and generating sanitized dummy fixtures. Those commands are
-for development workflows, not part of the main public API.
+Este repositorio incluye herramientas para personas mantenedoras que evalúan
+parsers contra un corpus privado local y generan fixtures dummy sanitizados.
+Esos comandos son para flujos de desarrollo, no forman parte de la API pública
+principal.
 
-See [Development notes](docs/development.md) for local validation, real-PDF
-testing, and fixture generation.
+Consulta las [Notas de desarrollo](docs/development.md) para validación local,
+pruebas con PDFs reales y generación de fixtures.
 
-## Project Layout
+## Estructura Del Proyecto
 
 ```text
 go-estado-cuenta-mx/
@@ -192,8 +196,8 @@ go-estado-cuenta-mx/
   examples/
 ```
 
-## Contributing and Security
+## Contribución Y Seguridad
 
-- [Contributing](CONTRIBUTING.md)
-- [Security](SECURITY.md)
-- [Changelog](CHANGELOG.md)
+- [Contribuir](CONTRIBUTING.md)
+- [Seguridad](SECURITY.md)
+- [Registro de cambios](CHANGELOG.md)

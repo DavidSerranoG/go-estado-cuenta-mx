@@ -1,45 +1,45 @@
 # HSBC
 
-Status: implemented and hardened with local real-PDF validation
+Estado: implementado y endurecido con validación local de PDFs reales
 
-Supported layouts:
+Layouts soportados:
 
-- HSBC credit card statement
-- HSBC Cuenta Flexible statement
+- estado de cuenta de tarjeta de crédito HSBC
+- estado de cuenta HSBC Cuenta Flexible
 
-Expected data:
+Datos esperados:
 
-- account number
-- period start and end
-- account class (`asset` for Cuenta Flexible, `liability` for credit cards)
-- optional summary fields when explicitly present in the statement
-- transaction list
-- transaction direction (`debit` / `credit`)
-- amount
-- running balance when present in the layout
+- número de cuenta
+- inicio y fin del periodo
+- clase de cuenta (`asset` para Cuenta Flexible, `liability` para tarjetas de crédito)
+- campos opcionales de `Summary` cuando están presentes de forma explícita en el estado de cuenta
+- lista de transacciones
+- dirección de la transacción (`debit` / `credit`)
+- monto
+- saldo corrido cuando el layout lo expone
 
-Summary coverage:
+Cobertura de `Summary`:
 
-| Layout | AccountClass | Public summary fields |
+| Layout | `AccountClass` | Campos públicos de `Summary` |
 | --- | --- | --- |
 | Cuenta Flexible | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents` |
-| credit card statement | `liability` | none yet |
+| estado de cuenta de tarjeta de crédito | `liability` | ninguno por ahora |
 
-Current parser behavior:
+Comportamiento actual del parser:
 
-- it accepts `NÚMERO DE CUENTA` with or without `:` and tolerates missing accents in the heading
-- card periods are parsed from ranges like `15-Sep-2025 al 12-Oct-2025`
-- card movements may be fully compacted on one line or split across a detail line plus an amount line
-- Cuenta Flexible periods are parsed from compact numeric ranges such as `01102025 al 31102025`
-- it classifies Cuenta Flexible layouts as `AccountClass=asset` and card layouts as `AccountClass=liability`
-- for Cuenta Flexible it exposes `Saldo Inicial` and `Saldo Final` through `Statement.Summary` when they are present
-- Cuenta Flexible movements are inferred from previous balance vs current balance, with a description hint fallback for card payments
-- Cuenta Flexible parsing stops before appendix sections such as SPEI, CoDi, CFDI/general-information pages so they do not create transaction noise
-- local real-PDF validation currently measures parser behavior against the lightweight default extractors only
+- acepta `NÚMERO DE CUENTA` con o sin `:` y tolera la falta de acentos en el encabezado
+- los periodos de tarjeta se parsean a partir de rangos como `15-Sep-2025 al 12-Oct-2025`
+- los movimientos de tarjeta pueden venir completamente compactados en una sola línea o divididos entre una línea de detalle y una línea de monto
+- los periodos de Cuenta Flexible se parsean desde rangos numéricos compactos como `01102025 al 31102025`
+- clasifica los layouts de Cuenta Flexible como `AccountClass=asset` y los layouts de tarjeta como `AccountClass=liability`
+- para Cuenta Flexible expone `Saldo Inicial` y `Saldo Final` mediante `Statement.Summary` cuando están presentes
+- los movimientos de Cuenta Flexible se infieren a partir del saldo previo contra el saldo actual, con fallback por pista en la descripción para pagos de tarjeta
+- el parseo de Cuenta Flexible se detiene antes de secciones de apéndice como SPEI, CoDi, CFDI/páginas de información general para que no generen ruido de transacciones
+- la validación local con PDFs reales actualmente mide el comportamiento del parser solo contra los extractores ligeros por defecto
 
-Known limits:
+Límites conocidos:
 
-- card statements still assume recognizable `dd-Mon-yyyy` date pairs; if OCR breaks both dates and sign markers, rows can be lost
-- Cuenta Flexible still expects the transaction header to begin with a 2-digit day; if OCR destroys that cue, the movement will be skipped
-- statement currency is normalized as `MXN`; foreign-currency purchase metadata is kept only inside the movement description/raw text
-- HSBC card statements do not yet expose payment due dates, minimum payment, credit limits, or available credit in the public summary model
+- los estados de tarjeta todavía asumen pares de fecha reconocibles `dd-Mon-yyyy`; si OCR rompe tanto las fechas como los marcadores de signo, pueden perderse renglones
+- Cuenta Flexible todavía espera que el encabezado de la transacción comience con un día de 2 dígitos; si OCR destruye esa pista, el movimiento se omitirá
+- la moneda del estado se normaliza como `MXN`; la metadata de compras en moneda extranjera se conserva solo dentro de la descripción/texto crudo del movimiento
+- los estados de tarjeta HSBC todavía no exponen fechas límite de pago, pago mínimo, límites de crédito ni crédito disponible en el modelo público de `Summary`

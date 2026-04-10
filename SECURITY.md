@@ -1,16 +1,19 @@
-# Security Policy
+# Política De Seguridad
 
-## Supported Branch
+## Rama Soportada
 
-Security fixes are applied on `main` while the project is pre-1.0.
+Las correcciones de seguridad se aplican sobre `main` mientras el proyecto siga
+en pre-1.0.
 
-## Reporting
+## Reporte
 
-If you believe you found a security issue, avoid opening a public issue with sensitive details. Share a private report with reproduction steps, affected bank/layout, and whether real customer data is involved.
+Si crees que encontraste un problema de seguridad, evita abrir un issue público
+con detalles sensibles. Comparte un reporte privado con pasos de reproducción,
+el banco/layout afectado y si hay datos reales de clientes involucrados.
 
-If GitHub private vulnerability reporting is enabled for this repository, prefer
-that channel for disclosure.
+Si el repositorio tiene habilitado el reporte privado de vulnerabilidades de
+GitHub, prefiere ese canal para la divulgación.
 
-## Sensitive Data
+## Datos Sensibles
 
-Do not attach unredacted bank statements to issues or pull requests.
+No adjuntes estados de cuenta sin redacción a issues o pull requests.

@@ -1,59 +1,60 @@
 # BBVA
 
-Status: implemented for account statements and BBVA credit card statements, with local real-PDF validation
+Estado: implementado para estados de cuenta y estados de cuenta de tarjeta de
+crédito BBVA, con validación local de PDFs reales
 
-Extraction note:
+Nota de extracción:
 
-- local real-PDF validation is run against the lightweight default extractors
-- when the first parse still fails because text is incomplete, callers can opt into Ghostscript + tesseract OCR as a rescue extractor
+- la validación local con PDFs reales se ejecuta contra los extractores ligeros por defecto
+- cuando el primer parseo todavía falla porque el texto está incompleto, quien consume la librería puede habilitar Ghostscript + Tesseract OCR como extractor de rescate
 
-Expected data:
+Datos esperados:
 
-- account number
-- period start and end
-- account class (`asset` for account statements, `liability` for credit cards)
-- optional summary fields when explicitly present in the statement
-- transaction list
-- transaction direction (`debit` / `credit`)
-- amount
-- running balance
+- número de cuenta
+- inicio y fin del periodo
+- clase de cuenta (`asset` para estados de cuenta, `liability` para tarjetas de crédito)
+- campos opcionales de `Summary` cuando están presentes de forma explícita en el estado de cuenta
+- lista de transacciones
+- dirección de la transacción (`debit` / `credit`)
+- monto
+- saldo corrido
 
-Summary coverage:
+Cobertura de `Summary`:
 
-| Layout | AccountClass | Public summary fields |
+| Layout | `AccountClass` | Campos públicos de `Summary` |
 | --- | --- | --- |
-| account statement | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
-| credit card statement | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
+| estado de cuenta | `asset` | `OpeningBalanceCents`, `ClosingBalanceCents`, `TotalDebitsCents`, `TotalCreditsCents` |
+| estado de cuenta de tarjeta de crédito | `liability` | `TotalDebitsCents`, `TotalCreditsCents`, `PaymentToAvoidInterestCents` |
 
-Supported inputs:
+Entradas soportadas:
 
-- classic synthetic rows such as `01/03/2026 ... ABONO 15000.00 15000.00`
-- compact real rows from `Detalle de Movimientos Realizados` with `OPER/LIQ`
-- BBVA credit card statements with `TU PAGO REQUERIDO ESTE PERIODO` and `DESGLOSE DE MOVIMIENTOS`
-- short transaction dates with Spanish month abbreviations such as `26/DIC` or `05/MAR`
-- extracted text where dates, headers, and balances may arrive glued with little or no whitespace
-- account headers from `Cuenta`, `No. de Cuenta`, `Número de cuenta`, or CLABE-derived fallback
+- renglones sintéticos clásicos como `01/03/2026 ... ABONO 15000.00 15000.00`
+- renglones reales compactos de `Detalle de Movimientos Realizados` con `OPER/LIQ`
+- estados de cuenta de tarjeta BBVA con `TU PAGO REQUERIDO ESTE PERIODO` y `DESGLOSE DE MOVIMIENTOS`
+- fechas cortas de transacción con abreviaturas de mes en español como `26/DIC` o `05/MAR`
+- texto extraído donde fechas, encabezados y saldos pueden llegar pegados, con poco o nada de espacio
+- encabezados de cuenta provenientes de `Cuenta`, `No. de Cuenta`, `Número de cuenta` o fallback derivado de CLABE
 
-Current parser behavior:
+Comportamiento actual del parser:
 
-- it detects the account from the explicit account field first, then falls back to the last 10 digits of the CLABE account body when needed
-- for credit cards it prefers the masked visible account identifier, then the masked card holder identifier, and finally the full card number when no masked identifier is present
-- it accepts period ranges with or without `:` and with `DEL ... AL ...` or `... - ...`
-- for credit cards it accepts ranges like `25-feb-2026 al 24-mar-2026`
-- it maps `MONEDA NACIONAL` and similar peso markers to `MXN`
-- it maps `MONEDA DÓLARES`, `MONEDA DOLARES`, and similar dollar-account markers to `USD`
-- it infers `debit` or `credit` from running balance first, then description hints, then statement totals
-- it classifies BBVA deposit layouts as `AccountClass=asset` and BBVA credit cards as `AccountClass=liability`
-- for account statements it exposes opening and closing balances plus total cargos and abonos when those labels are present
-- it can repair a contaminated amount when the running balance makes the intended movement clear
-- for credit cards it parses the `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)` section, maps `Fecha de cargo` into `PostedAt`, keeps `BalanceCents` empty, validates parsed movements against `TOTAL CARGOS` / `TOTAL ABONOS`, and exposes `PAGO PARA NO GENERAR INTERESES` when present
-- for credit cards it can join OCR continuation lines such as `MXP ... TIPO DE CAMBIO ...` onto the preceding movement description
+- detecta la cuenta a partir del campo explícito primero, y después hace fallback a los últimos 10 dígitos del cuerpo de la CLABE cuando hace falta
+- para tarjetas de crédito prefiere el identificador visible enmascarado de la cuenta, luego el identificador enmascarado del titular y por último el número completo de tarjeta cuando no existe identificador enmascarado
+- acepta rangos de periodo con o sin `:` y con `DEL ... AL ...` o `... - ...`
+- para tarjetas de crédito acepta rangos como `25-feb-2026 al 24-mar-2026`
+- mapea `MONEDA NACIONAL` y marcadores similares de pesos a `MXN`
+- mapea `MONEDA DÓLARES`, `MONEDA DOLARES` y marcadores similares de cuentas en dólares a `USD`
+- infiere `debit` o `credit` primero a partir del saldo corrido, después con pistas en la descripción y al final con los totales del estado
+- clasifica los layouts de depósito BBVA como `AccountClass=asset` y las tarjetas de crédito BBVA como `AccountClass=liability`
+- para estados de cuenta expone saldos inicial y final, además de total de cargos y abonos cuando esas etiquetas están presentes
+- puede corregir un monto contaminado cuando el saldo corrido deja claro cuál era el movimiento pretendido
+- para tarjetas de crédito parsea la sección `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)`, mapea `Fecha de cargo` a `PostedAt`, deja `BalanceCents` vacío, valida los movimientos parseados contra `TOTAL CARGOS` / `TOTAL ABONOS` y expone `PAGO PARA NO GENERAR INTERESES` cuando está presente
+- para tarjetas de crédito puede unir líneas de continuación OCR como `MXP ... TIPO DE CAMBIO ...` a la descripción del movimiento anterior
 
-Known limits:
+Límites conocidos:
 
-- if a compact row loses both the running balance and the summary totals, ambiguous debit vs credit rows can remain unresolved
-- if OCR destroys the short date tokens or removes decimal separators from all amounts, the parser may stop with `no transactions found`
-- CLABE fallback assumes standard 18-digit CLABE extraction; badly interleaved OCR digits may still fail
-- credit card support currently covers only `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)`; benefits, glossary, notes, and purchases at instalments are ignored
-- credit card currency is currently normalized as `MXN`
-- `AverageBalanceCents`, `PaymentDueDate`, `MinimumPaymentCents`, `CreditLimitCents`, and `AvailableCreditCents` stay empty unless a future BBVA layout exposes them with stable labels
+- si un renglón compacto pierde tanto el saldo corrido como los totales del resumen, las filas ambiguas entre débito y crédito pueden quedar sin resolverse
+- si OCR destruye los tokens de fecha corta o elimina separadores decimales de todos los montos, el parser puede detenerse con `no transactions found`
+- el fallback por CLABE asume extracción estándar de una CLABE de 18 dígitos; dígitos OCR demasiado intercalados todavía pueden fallar
+- el soporte de tarjeta de crédito cubre actualmente solo `CARGOS,COMPRAS Y ABONOS REGULARES (NO A MESES)`; beneficios, glosario, notas y compras a meses se ignoran
+- la moneda de tarjeta de crédito actualmente se normaliza como `MXN`
+- `AverageBalanceCents`, `PaymentDueDate`, `MinimumPaymentCents`, `CreditLimitCents` y `AvailableCreditCents` permanecen vacíos salvo que un futuro layout de BBVA los exponga con etiquetas estables

@@ -1,12 +1,12 @@
-# Fixturegen Overrides
+# Overrides De `fixturegen`
 
-`edocuenta-fixturegen` loads optional per-layout overrides from:
+`edocuenta-fixturegen` carga overrides opcionales por layout desde:
 
 ```text
 testdata/fixturegen/overrides/<bank>/<layout>.json
 ```
 
-Supported keys:
+Claves soportadas:
 
 ```json
 {
@@ -25,6 +25,5 @@ Supported keys:
 }
 ```
 
-Coordinates use PDF points so they can align with `pdftotext -bbox-layout` and
-the rendered output PDF.
-
+Las coordenadas usan puntos de PDF para alinearse con
+`pdftotext -bbox-layout` y con el PDF renderizado de salida.

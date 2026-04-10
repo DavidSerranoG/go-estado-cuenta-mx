@@ -1,5 +1,5 @@
-name: Bug report
-description: Report an incorrect parse or extractor behavior for a supported layout.
+name: Reporte de bug
+description: Reporta un parseo incorrecto o un comportamiento inesperado del extractor en un layout soportado.
 title: "[bug] "
 labels:
   - bug
@@ -7,77 +7,77 @@ body:
   - type: markdown
     attributes:
       value: |
-        Use sanitized text or sanitized fixtures only.
+        Usa solo texto sanitizado o fixtures sanitizados.
 
-        Do not attach real or unredacted bank statements to this issue.
+        No adjuntes estados de cuenta reales ni sin redacción en este issue.
   - type: dropdown
     id: bank
     attributes:
-      label: Bank
-      description: Select the bank for the affected statement.
+      label: Banco
+      description: Selecciona el banco del estado de cuenta afectado.
       options:
         - BBVA
         - HSBC
-        - Other / unsupported
+        - Otro / no soportado
     validations:
       required: true
   - type: input
     id: layout
     attributes:
       label: Layout
-      description: Name the statement layout if you know it.
-      placeholder: credit card, account statement, Cuenta Flexible
+      description: Nombra el layout del estado de cuenta si lo conoces.
+      placeholder: tarjeta de crédito, estado de cuenta, Cuenta Flexible
     validations:
       required: true
   - type: textarea
     id: expected
     attributes:
-      label: Expected result
-      description: Describe the normalized output or behavior you expected.
-      placeholder: The parser should detect 14 transactions and the closing balance.
+      label: Resultado esperado
+      description: Describe la salida normalizada o el comportamiento que esperabas.
+      placeholder: El parser debería detectar 14 transacciones y el saldo final.
     validations:
       required: true
   - type: textarea
     id: actual
     attributes:
-      label: Actual result
-      description: Include the returned error, warnings, or incorrect fields.
-      placeholder: ParsePDF returned no transactions found after OCR rescue.
+      label: Resultado actual
+      description: Incluye el error devuelto, advertencias o campos incorrectos.
+      placeholder: ParsePDF devolvió no transactions found después del OCR de rescate.
     validations:
       required: true
   - type: textarea
     id: sanitized_input
     attributes:
-      label: Sanitized input
-      description: Paste sanitized extracted text or link to a sanitized fixture path in the repository.
-      placeholder: Paste sanitized text here or reference testdata/public-pdfs/...
+      label: Entrada sanitizada
+      description: Pega texto extraído sanitizado o enlaza a una ruta de fixture sanitizado dentro del repositorio.
+      placeholder: Pega aquí el texto sanitizado o referencia testdata/public-pdfs/...
       render: text
     validations:
       required: true
   - type: dropdown
     id: ocr
     attributes:
-      label: OCR configuration
-      description: Select the extraction path you used.
+      label: Configuración de OCR
+      description: Selecciona la ruta de extracción que usaste.
       options:
-        - Default extractor chain only
-        - Rescue OCR enabled
-        - Custom extractor chain
-        - Not sure
+        - Solo cadena de extractores por defecto
+        - OCR de rescate habilitado
+        - Cadena de extractores personalizada
+        - No estoy seguro
     validations:
       required: true
   - type: textarea
     id: environment
     attributes:
-      label: Environment
-      description: Include module version or commit, Go version, and OS if relevant.
+      label: Entorno
+      description: Incluye la versión del módulo o commit, la versión de Go y el sistema operativo si aplica.
       placeholder: main @ abc123, Go 1.25.x, macOS 15
   - type: checkboxes
     id: confirmations
     attributes:
-      label: Confirmations
+      label: Confirmaciones
       options:
-        - label: I did not attach real or unredacted bank statements.
+        - label: No adjunté estados de cuenta reales ni sin redacción.
           required: true
-        - label: I included enough sanitized input to reproduce the problem.
+        - label: Incluí suficiente entrada sanitizada para reproducir el problema.
           required: true
