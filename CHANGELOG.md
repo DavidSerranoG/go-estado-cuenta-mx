@@ -11,5 +11,6 @@
 - Se agregó el paquete `supported` como punto de entrada externo recomendado.
 - Se movió la lógica pesada de parsers detrás de fachadas públicas delgadas por banco y se dejó la ruta de extracción por defecto más ligera.
 - Se agregó evaluación de candidatos de extracción, normalización compartida consciente de OCR y diagnósticos en `ParseResult.Extraction`.
+- Se agregaron diagnósticos públicos de parser/layout/confianza en `ParseResult.Diagnostics` y la selección de candidatos ahora penaliza parseos estructuralmente débiles.
 - Se agregó el comando de desarrollo `cmd/edocuenta-eval` para benchmarking sobre el corpus local.
 - Se agregaron documentación orientada a OSS, licencia y checks de CI más estrictos.

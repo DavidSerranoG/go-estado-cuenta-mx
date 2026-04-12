@@ -72,6 +72,7 @@ if err != nil {
 _ = result.Statement
 _ = result.Warnings
 _ = result.Extraction
+_ = result.Diagnostics
 _ = result.ExtractedText
 ```
 
@@ -124,6 +125,14 @@ Los tipos de dominio principales son:
 de cuenta de origen, como saldos, totales o metadatos de pagos de tarjeta.
 
 Los diagnósticos viven en `ParseResult`, no en `Statement`.
+
+`ParseResult.Diagnostics` expone además:
+
+- `SelectedParser`
+- `Layout`
+- `DetectionScore`
+- `Confidence`
+- `Issues`
 
 ## Estrategia de Extracción
 

@@ -62,6 +62,33 @@ func TestProcessorPrimaryCandidateWinsTieOnDetectionScore(t *testing.T) {
 	}
 }
 
+func TestProcessorPrefersHigherConfidenceCandidateOverMoreTransactions(t *testing.T) {
+	t.Parallel()
+
+	processor := edocuenta.New(
+		edocuenta.WithExtractor(candidateExtractor{
+			name:  "primary",
+			texts: []string{"FAKE BANK HIGH SCORE ONE TX"},
+		}),
+		edocuenta.WithRescueExtractor(candidateExtractor{
+			name:  "rescue",
+			texts: []string{"FAKE BANK LOW SCORE TWO TX MISSING ACCOUNT"},
+		}),
+		edocuenta.WithParser(fakeCandidateParser{}),
+	)
+
+	result, err := processor.ParsePDFResult(context.Background(), []byte("pdf"))
+	if err != nil {
+		t.Fatalf("parse pdf result: %v", err)
+	}
+	if result.Extraction.SelectedExtractor != "primary" {
+		t.Fatalf("expected primary candidate to win on confidence, got %q", result.Extraction.SelectedExtractor)
+	}
+	if result.Diagnostics.Confidence != edocuenta.ParseConfidenceHigh {
+		t.Fatalf("expected high confidence result, got %q", result.Diagnostics.Confidence)
+	}
+}
+
 type candidateExtractor struct {
 	name  string
 	texts []string
@@ -150,11 +177,18 @@ func (fakeCandidateParser) ParseResult(text string) (edocuenta.ParseResult, erro
 	return edocuenta.ParseResult{
 		Statement: edocuenta.Statement{
 			Bank:          "fake",
-			AccountNumber: "1234",
+			AccountNumber: fakeAccountNumber(text),
 			Currency:      edocuenta.CurrencyMXN,
 			PeriodStart:   time.Date(2026, 4, 1, 0, 0, 0, 0, time.UTC),
 			PeriodEnd:     time.Date(2026, 4, 30, 0, 0, 0, 0, time.UTC),
 			Transactions:  transactions,
 		},
 	}, nil
+}
+
+func fakeAccountNumber(text string) string {
+	if strings.Contains(text, "MISSING ACCOUNT") {
+		return ""
+	}
+	return "1234"
 }

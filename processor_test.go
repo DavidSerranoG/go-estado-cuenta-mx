@@ -39,6 +39,17 @@ func TestProcessorDetectsHSBCText(t *testing.T) {
 	if len(statement.Transactions) != 2 {
 		t.Fatalf("expected 2 transactions, got %d", len(statement.Transactions))
 	}
+
+	result, err := processor.ParseTextResult(sampleHSBCText)
+	if err != nil {
+		t.Fatalf("parse text result: %v", err)
+	}
+	if result.Diagnostics.Layout != "card" {
+		t.Fatalf("expected card layout, got %q", result.Diagnostics.Layout)
+	}
+	if result.Diagnostics.Confidence != edocuenta.ParseConfidenceHigh {
+		t.Fatalf("expected high confidence, got %q", result.Diagnostics.Confidence)
+	}
 }
 
 func TestProcessorPrefersStructuralDetectionOverBankMentionsInBody(t *testing.T) {
@@ -56,6 +67,14 @@ func TestProcessorPrefersStructuralDetectionOverBankMentionsInBody(t *testing.T)
 
 	if statement.Bank != "hsbc" {
 		t.Fatalf("expected hsbc parser to win, got %q", statement.Bank)
+	}
+
+	result, err := processor.ParseTextResult(sampleFlexibleHSBCWithBBVAMention)
+	if err != nil {
+		t.Fatalf("parse text result: %v", err)
+	}
+	if result.Diagnostics.Layout != "flexible" {
+		t.Fatalf("expected flexible layout, got %q", result.Diagnostics.Layout)
 	}
 }
 
@@ -91,6 +110,12 @@ func TestProcessorRetriesWithRescueExtractorWhenBBVACardTextIsIncomplete(t *test
 	}
 	if result.Extraction.SelectedExtractor != "rescue" || !result.Extraction.UsedRescue {
 		t.Fatalf("unexpected extraction diagnostics %+v", result.Extraction)
+	}
+	if result.Diagnostics.Layout != "card" {
+		t.Fatalf("expected card layout, got %q", result.Diagnostics.Layout)
+	}
+	if result.Diagnostics.Confidence != edocuenta.ParseConfidenceHigh {
+		t.Fatalf("expected high confidence, got %q", result.Diagnostics.Confidence)
 	}
 }
 

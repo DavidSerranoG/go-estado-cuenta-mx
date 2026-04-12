@@ -52,6 +52,15 @@ func (Parser) DetectionScore(text string) int {
 	return hsbcDetectionScore(text)
 }
 
+// Layout returns the normalized HSBC layout identifier.
+func (Parser) Layout(text string) string {
+	text = normalize.NormalizeExtractedText(text)
+	if strings.Contains(strings.ToUpper(text), "CUENTA FLEXIBLE") {
+		return "flexible"
+	}
+	return "card"
+}
+
 // CanParse checks whether the extracted text looks like HSBC.
 func (Parser) CanParse(text string) bool {
 	return hsbcDetectionScore(text) > 0
@@ -1108,7 +1117,9 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 				continue
 			}
 			if looksLikeFlexibleHeaderAt(lines, j) {
-				warnings = append(warnings, "line ignored: "+line)
+				if !isFlexibleInformationalLine(line) {
+					warnings = append(warnings, "line ignored: "+line)
+				}
 				ignored = true
 				i = j - 1
 				break
@@ -1124,7 +1135,9 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 			if ignored {
 				continue
 			}
-			warnings = append(warnings, "line ignored: "+line)
+			if !isFlexibleInformationalLine(line) {
+				warnings = append(warnings, "line ignored: "+line)
+			}
 			continue
 		}
 
@@ -1156,6 +1169,11 @@ func parseFlexibleTransactions(text string, periodStart, periodEnd time.Time, in
 	}
 
 	return transactions, warnings, nil
+}
+
+func isFlexibleInformationalLine(line string) bool {
+	normalized := strings.ToUpper(normalize.CollapseWhitespace(line))
+	return strings.Contains(normalized, "APERTURA DE CUENTA")
 }
 
 func parseFlexibleAmountsAt(lines []string, start int) (int64, int64, int, bool, error) {

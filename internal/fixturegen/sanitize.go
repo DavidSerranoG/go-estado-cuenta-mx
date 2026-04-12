@@ -80,6 +80,9 @@ func normalizeHint(hint Hint, original edocuenta.ParseResult) Hint {
 }
 
 func inferLayout(original edocuenta.ParseResult) string {
+	if layout := strings.TrimSpace(original.Diagnostics.Layout); layout != "" {
+		return strings.ToLower(layout)
+	}
 	text := strings.ToUpper(original.ExtractedText)
 	switch {
 	case strings.Contains(text, "CUENTA FLEXIBLE"):

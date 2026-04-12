@@ -204,6 +204,60 @@ func TestParseStatementFallsBackToCLABEAndSpacedCompactDates(t *testing.T) {
 	}
 }
 
+func TestParseCompactUSDStatementWithLeadingCreditWithoutBalance(t *testing.T) {
+	t.Parallel()
+
+	parser := bbva.New()
+
+	statement, err := parser.Parse(realStyleCompactUSDText)
+	if err != nil {
+		t.Fatalf("parse compact usd statement: %v", err)
+	}
+
+	if statement.AccountNumber != "0484984080" {
+		t.Fatalf("unexpected account %q", statement.AccountNumber)
+	}
+	if statement.Currency != "USD" {
+		t.Fatalf("unexpected currency %q", statement.Currency)
+	}
+	if statement.Summary == nil {
+		t.Fatal("expected summary")
+	}
+	if statement.Summary.OpeningBalanceCents == nil || *statement.Summary.OpeningBalanceCents != 1090804 {
+		t.Fatalf("unexpected opening balance %+v", statement.Summary.OpeningBalanceCents)
+	}
+	if statement.Summary.ClosingBalanceCents == nil || *statement.Summary.ClosingBalanceCents != 1768848 {
+		t.Fatalf("unexpected closing balance %+v", statement.Summary.ClosingBalanceCents)
+	}
+	if statement.Summary.TotalDebitsCents == nil || *statement.Summary.TotalDebitsCents != 8907 {
+		t.Fatalf("unexpected total debits %+v", statement.Summary.TotalDebitsCents)
+	}
+	if statement.Summary.TotalCreditsCents == nil || *statement.Summary.TotalCreditsCents != 686951 {
+		t.Fatalf("unexpected total credits %+v", statement.Summary.TotalCreditsCents)
+	}
+	if len(statement.Transactions) != 9 {
+		t.Fatalf("expected 9 transactions, got %d", len(statement.Transactions))
+	}
+	if statement.Transactions[0].Direction != "credit" {
+		t.Fatalf("unexpected first direction %q", statement.Transactions[0].Direction)
+	}
+	if statement.Transactions[0].BalanceCents == nil || *statement.Transactions[0].BalanceCents != 1298971 {
+		t.Fatalf("unexpected first balance %+v", statement.Transactions[0].BalanceCents)
+	}
+	if statement.Transactions[1].Direction != "debit" || statement.Transactions[1].AmountCents != 2000 {
+		t.Fatalf("unexpected second transaction %+v", statement.Transactions[1])
+	}
+	if statement.Transactions[5].Direction != "debit" || statement.Transactions[5].AmountCents != 836 {
+		t.Fatalf("unexpected sixth transaction %+v", statement.Transactions[5])
+	}
+	if statement.Transactions[7].Direction != "credit" || statement.Transactions[7].AmountCents != 208167 {
+		t.Fatalf("unexpected eighth transaction %+v", statement.Transactions[7])
+	}
+	if statement.Transactions[8].Direction != "credit" || statement.Transactions[8].AmountCents != 270617 {
+		t.Fatalf("unexpected ninth transaction %+v", statement.Transactions[8])
+	}
+}
+
 func TestParseCreditCardStatement(t *testing.T) {
 	t.Parallel()
 
@@ -331,6 +385,13 @@ PeriodoDEL23/02/2026AL24/03/2026Fecha de Corte24/03/2026No. Cuenta CLABE012 028 
 Información FinancieraMONEDA DÓLARESLibretón Dólares
 ComportamientoSaldo Anterior1,000.33Depósitos / Abonos (+)500.00Retiros / Cargos (-)496.00Saldo Final1,004.33
 Detalle de Movimientos RealizadosFECHASALDOOPERLIQDESCRIPCIONREFERENCIACARGOSABONOSOPERACIONLIQUIDACION24/FEB 24/FEB DEPOSITO EN EFECTIVO500.001,500.331,500.33 SUCURSAL 00012705/MAR 05/MAR PAGO TARJETA496.001,004.331,004.33 REFERENCIA 0093128142TOTAL IMPORTE CARGOS496.00TOTAL MOVIMIENTOS CARGOS1TOTAL IMPORTE ABONOS500.00TOTAL MOVIMIENTOS ABONOS1`
+
+const realStyleCompactUSDText = `BBVA
+PeriodoDEL 01/03/2026 AL 31/03/2026Fecha de Corte 31/03/2026No. de Cuenta0484984080No. de ClienteC0000000No. Cuenta CLABE012028004849840808PAGINA  1 / 5
+Información FinancieraMONEDA DOLARESLibretón Dólares
+Detalle de Movimientos RealizadosFECHASALDOOPERLIQDESCRIPCIÓNREFERENCIACARGOSABONOSOPERACIÓNLIQUIDACIÓN03/MAR03/MARPAGO CUENTA DE TERCERO2,081.67 0018183007  BNET 0111250892 CLIENTE EJEMPLO AB1203/MAR02/MARCLAUDE.AI SUBSCRIPTION20.0012,969.7112,931.98******0434  USD 20.00TC001.0000AUT: 83913904/MAR03/MARSTRIPE *AMAZON23.6312,946.0812,914.00******0434  RFC: ANE 140618P37 07:26 AUT: 65993505/MAR03/MARAMAZON14.1012,931.9812,914.00******0434  RFC: ANE 140618P37 20:13 AUT: 44507206/MAR04/MARSTRIPE *AMAZON17.9812,914.0012,905.64******0434  RFC: ANE 140618P37 02:28 AUT: 07096909/MAR06/MARAMAZON MX DIGITAL8.3612,905.6412,905.64******0434  RFC: ANE 140618P37 21:44 AUT: 14685612/MAR11/MARANTHROPIC5.0012,900.6412,900.64******0434  USD 5.00TC001.0000AUT: 63211120/MAR20/MARPAGO CUENTA DE TERCERO2,081.6714,982.3114,982.310027470008  BNET 0111250892 CLIENTE EJEMPLO CD34231/MAR31/MARPAGO CUENTA DE TERCERO2,706.1717,688.4817,688.480020825029  BNET 0111250892 CLIENTE EJEMPLO EF56
+ComportamientoSaldo Anterior10,908.04Depósitos / Abonos (+)6,869.51Retiros / Cargos (-)89.07Saldo Final (+)17,688.48
+Total de MovimientosTOTAL IMPORTE CARGOS89.07TOTAL MOVIMIENTOS CARGOS6TOTAL IMPORTE ABONOS6,869.51TOTAL MOVIMIENTOS ABONOS3`
 
 const cardStatementText = `BBVA
 TARJETA AZUL BBVA (CLASICA)

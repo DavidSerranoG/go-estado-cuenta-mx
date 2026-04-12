@@ -35,6 +35,15 @@ const (
 	TransactionDirectionCredit TransactionDirection = "credit"
 )
 
+// ParseConfidence classifies how trustworthy the selected parse result is.
+type ParseConfidence string
+
+const (
+	ParseConfidenceLow    ParseConfidence = "low"
+	ParseConfidenceMedium ParseConfidence = "medium"
+	ParseConfidenceHigh   ParseConfidence = "high"
+)
+
 // Statement contains normalized domain data extracted from a bank statement.
 //
 // It intentionally excludes extraction and parsing diagnostics so callers can
@@ -80,6 +89,7 @@ type ParseResult struct {
 	Statement     Statement
 	Warnings      []string
 	Extraction    ExtractionDiagnostics
+	Diagnostics   ParseDiagnostics
 	ExtractedText string
 }
 
@@ -89,4 +99,13 @@ type ExtractionDiagnostics struct {
 	SelectedExtractor string
 	UsedRescue        bool
 	Attempts          []TextExtractionAttempt
+}
+
+// ParseDiagnostics exposes which parser/layout won and how reliable the result looks.
+type ParseDiagnostics struct {
+	SelectedParser string
+	Layout         string
+	DetectionScore int
+	Confidence     ParseConfidence
+	Issues         []string
 }
