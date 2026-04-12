@@ -23,6 +23,8 @@ type candidateOutcome struct {
 	candidate      extractorCandidate
 	result         ParseResult
 	detectionScore int
+	validation     validationSummary
+	parser         Parser
 	err            error
 }
 
@@ -64,12 +66,13 @@ func (p *Processor) parsePDFResult(ctx context.Context, pdfBytes []byte, bank st
 	}
 
 	result := outcome.result
+	result.ExtractedText = outcome.candidate.RawText
 	result.Extraction = ExtractionDiagnostics{
 		SelectedExtractor: outcome.candidate.Extractor,
 		UsedRescue:        outcome.candidate.UsedRescue,
 		Attempts:          publicAttempts(attempts),
 	}
-	result.ExtractedText = outcome.candidate.RawText
+	result.Diagnostics = buildParseDiagnostics(outcome.parser, outcome.candidate.Text, result, outcome.detectionScore)
 	return result, nil
 }
 
@@ -94,10 +97,11 @@ func (p *Processor) parseTextCandidate(text string, bank string) (ParseResult, e
 	}
 
 	result := outcome.result
+	result.ExtractedText = text
 	result.Extraction = ExtractionDiagnostics{
 		SelectedExtractor: "input",
 	}
-	result.ExtractedText = text
+	result.Diagnostics = buildParseDiagnostics(outcome.parser, candidate.Text, result, outcome.detectionScore)
 	return result, nil
 }
 
@@ -184,6 +188,7 @@ func (p *Processor) evaluateCandidate(candidate extractorCandidate, fixedParser 
 	} else {
 		outcome.detectionScore = parserDetectionScore(parser, candidate.Text)
 	}
+	outcome.parser = parser
 
 	result, err := p.parseWithParser(parser, candidate.Text)
 	if err != nil {
@@ -192,11 +197,15 @@ func (p *Processor) evaluateCandidate(candidate extractorCandidate, fixedParser 
 	}
 
 	outcome.result = result
+	outcome.validation = validateParseResult(result)
 	return outcome
 }
 
 func compareCandidateOutcomes(left, right candidateOutcome) int {
 	if delta := compareBool(left.err == nil, right.err == nil); delta != 0 {
+		return delta
+	}
+	if delta := compareInt(left.validation.score, right.validation.score); delta != 0 {
 		return delta
 	}
 	if delta := compareInt(len(left.result.Statement.Transactions), len(right.result.Statement.Transactions)); delta != 0 {

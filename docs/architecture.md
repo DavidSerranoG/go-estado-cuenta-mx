@@ -18,7 +18,7 @@ Flujo:
 2. el procesador ejecuta la estrategia de extracción de texto configurada
 3. se selecciona un parser bancario de forma explícita o por score de detección estructural
 4. el parser devuelve un `Statement` normalizado, incluyendo `AccountClass` y datos opcionales en `Summary` cuando el layout los expone con claridad
-5. quienes necesitan más detalle pueden inspeccionar advertencias, diagnósticos de extracción y texto extraído mediante `ParseResult`
+5. quienes necesitan más detalle pueden inspeccionar advertencias, diagnósticos de extracción, layout/confianza y texto extraído mediante `ParseResult`
 
 `Statement` es el modelo de dominio limpio. Hoy incluye:
 
@@ -27,7 +27,8 @@ Flujo:
 - dirección de cada movimiento mediante `Transaction.Direction`
 
 `ParseResult` sigue existiendo solo para diagnósticos. Las advertencias, el
-texto extraído y la selección del extractor se mantienen fuera de `Statement`.
+texto extraído, la selección del extractor, el layout detectado y la confianza
+del parseo se mantienen fuera de `Statement`.
 
 ## Estrategia De Extracción Integrada
 

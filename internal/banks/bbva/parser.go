@@ -31,8 +31,8 @@ var (
 	periodPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)periodo\s*:?\s*(?:del\s*)?(` + bbvaFullDatePattern + `)\s*(?:-|a|al)\s*(` + bbvaFullDatePattern + `)`),
 	}
-	openingBalancePattern = regexp.MustCompile(`(?i)saldo anterior\s*([0-9,]+\.\d{2})`)
-	closingBalancePattern = regexp.MustCompile(`(?i)saldo final\s*([0-9,]+\.\d{2})`)
+	openingBalancePattern = regexp.MustCompile(`(?i)saldo anterior(?:\s*\([+-]\))?\s*([0-9,]+\.\d{2})`)
+	closingBalancePattern = regexp.MustCompile(`(?i)saldo final(?:\s*\([+-]\))?\s*([0-9,]+\.\d{2})`)
 	summaryPattern        = regexp.MustCompile(`(?is)total importe cargos\s*([0-9,]+\.\d{2})\s*total movimientos cargos\s*([0-9]+)\s*total importe abonos\s*([0-9,]+\.\d{2})\s*total movimientos abonos\s*([0-9]+)`)
 	legacyTxPattern       = regexp.MustCompile(`(?i)^([0-9]{2}/[0-9]{2}/[0-9]{4})\s+(.+?)\s+(ABONO|CARGO)\s+([0-9,]+\.\d{2})\s+([0-9,]+\.\d{2})$`)
 	realTxStartPattern    = regexp.MustCompile(`(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)`)
@@ -56,6 +56,15 @@ func (Parser) Bank() string {
 // DetectionScore returns a structural confidence score for BBVA layouts.
 func (Parser) DetectionScore(text string) int {
 	return bbvaDetectionScore(text)
+}
+
+// Layout returns the normalized BBVA layout identifier.
+func (Parser) Layout(text string) string {
+	text = normalize.NormalizeExtractedText(text)
+	if looksLikeCardStatement(text) {
+		return "card"
+	}
+	return "account"
 }
 
 // CanParse checks whether the extracted text looks like BBVA.
@@ -404,7 +413,7 @@ func extractTransactionSection(text string) (string, bool) {
 	section := text[start:]
 	upperSection := upper[start:]
 	end := len(section)
-	for _, marker := range []string{"TOTAL IMPORTE CARGOS", "TOTAL DE MOVIMIENTOS", "SALDO FINAL"} {
+	for _, marker := range []string{"TOTAL IMPORTE CARGOS", "TOTAL DE MOVIMIENTOS", "SALDO FINAL", "COMPORTAMIENTO"} {
 		if idx := strings.Index(upperSection, marker); idx != -1 && idx < end {
 			end = idx
 		}
@@ -610,6 +619,14 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 		}
 
 		item := &items[i]
+		if item.kind == "" && item.balanceCents == nil {
+			if inferredBalance, ok := inferMissingBalanceTransaction(items, i, running); ok {
+				item.kind = inferredBalance.kind
+				item.balanceCents = &inferredBalance.balance
+				changed = true
+			}
+		}
+
 		if item.balanceCents != nil {
 			delta := *item.balanceCents - running
 			switch {
@@ -658,6 +675,61 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 	}
 
 	return changed
+}
+
+type inferredBalanceTransaction struct {
+	kind    edocuenta.TransactionDirection
+	balance int64
+}
+
+func inferMissingBalanceTransaction(items []rawTransaction, idx int, running int64) (inferredBalanceTransaction, bool) {
+	if idx < 0 || idx >= len(items)-1 {
+		return inferredBalanceTransaction{}, false
+	}
+
+	current := items[idx]
+	next := items[idx+1]
+	if current.amountCents <= 0 || next.balanceCents == nil || next.amountCents <= 0 {
+		return inferredBalanceTransaction{}, false
+	}
+
+	type candidate struct {
+		currentKind edocuenta.TransactionDirection
+		nextKind    edocuenta.TransactionDirection
+	}
+
+	var matches []candidate
+	for _, currentKind := range []edocuenta.TransactionDirection{
+		edocuenta.TransactionDirectionDebit,
+		edocuenta.TransactionDirectionCredit,
+	} {
+		currentBalance := applyAmount(running, current.amountCents, currentKind)
+		for _, nextKind := range []edocuenta.TransactionDirection{
+			edocuenta.TransactionDirectionDebit,
+			edocuenta.TransactionDirectionCredit,
+		} {
+			if applyAmount(currentBalance, next.amountCents, nextKind) == *next.balanceCents {
+				matches = append(matches, candidate{
+					currentKind: currentKind,
+					nextKind:    nextKind,
+				})
+			}
+		}
+	}
+
+	if len(matches) != 1 {
+		return inferredBalanceTransaction{}, false
+	}
+
+	match := matches[0]
+	if next.kind != "" && next.kind != match.nextKind {
+		return inferredBalanceTransaction{}, false
+	}
+
+	return inferredBalanceTransaction{
+		kind:    match.currentKind,
+		balance: applyAmount(running, current.amountCents, match.currentKind),
+	}, true
 }
 
 func resolveWithDescriptionHints(items []rawTransaction) bool {

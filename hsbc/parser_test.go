@@ -148,6 +148,28 @@ func TestParseFlexibleStatementAcceptsNumericReferenceHeaders(t *testing.T) {
 	}
 }
 
+func TestParseFlexibleStatementIgnoresAccountOpeningInfoLine(t *testing.T) {
+	t.Parallel()
+
+	parser := hsbc.New()
+
+	result, err := parser.ParseResult(flexibleAccountOpeningInfoText)
+	if err != nil {
+		t.Fatalf("parse flexible statement with account opening info: %v", err)
+	}
+	statement := result.Statement
+
+	if len(result.Warnings) != 0 {
+		t.Fatalf("expected no warnings, got %v", result.Warnings)
+	}
+	if len(statement.Transactions) != 1 {
+		t.Fatalf("expected 1 transaction, got %d", len(statement.Transactions))
+	}
+	if statement.Transactions[0].Description != "A MI HSBC" {
+		t.Fatalf("unexpected description %q", statement.Transactions[0].Description)
+	}
+}
+
 func TestParseOCRLikeFlexibleStatement(t *testing.T) {
 	t.Parallel()
 
@@ -374,6 +396,24 @@ SerialRetiroCargoDepósitoAbonoSaldo
 308379
 $ 37,000.00 $ 49,587.37
 Saldo Inicial $           12,587.37`
+
+const flexibleAccountOpeningInfoText = `CUENTA FLEXIBLE
+Estado de Cuenta
+NÚMERO DE CUENTACLABE INTERBANCARIA
+6529009644021028065290096448
+4Período del01102025 al 31102025
+4Saldo Inicial del
+Periodo
+$ 6,595.73
+DETALLE MOVIMIENTOS CUENTA FLEXIBLE No.  6529009644
+DíaDescripciónReferencia
+SerialRetiroCargoDepósitoAbonoSaldo
+01APERTURA DE CUENTA
+20A MI HSBC                        081025008045221
+201345
+$ 36,000.00 $ 42,595.73
+Saldo Inicial $            6,595.73
+Saldo Final $42,595.73`
 
 const ocrLikeFlexibleText = `CUENTA FLEXIBLE
 Estado de Cuenta
