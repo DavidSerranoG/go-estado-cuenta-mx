@@ -80,6 +80,45 @@ func TestParseSplitOCRCardTransactionAcceptsSplitSignAndAmountLines(t *testing.T
 	}
 }
 
+func TestParseOCRCardTransactionsCarriesSplitPaymentDescriptionBeforeScanning(t *testing.T) {
+	t.Parallel()
+
+	text := `DESGLOSE DE MOVIMIENTOS
+SU PAGO GRACIAS
+-
+16-Sep-2025
+17-Sep-2025
+$25,000.00
+12-Sep-2025
+15-Sep-2025
+RUGR590104PR9 SERV GAS PREMIER
++|$868.07
+ATENCION DE QUEJAS`
+
+	periodStart := time.Date(2025, 9, 15, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2025, 10, 12, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings, err := parseOCRCardTransactions(text, periodStart, periodEnd)
+	if err != nil {
+		t.Fatalf("parseOCRCardTransactions() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 2 {
+		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
+	}
+	if transactions[0].Description != "SU PAGO GRACIAS" {
+		t.Fatalf("first description = %q, want SU PAGO GRACIAS", transactions[0].Description)
+	}
+	if transactions[0].Direction != "credit" {
+		t.Fatalf("first direction = %q, want credit", transactions[0].Direction)
+	}
+	if transactions[0].AmountCents != 2500000 {
+		t.Fatalf("first amount = %d, want 2500000", transactions[0].AmountCents)
+	}
+}
+
 func TestParseCardPeriodAcceptsOCRMonthDigits(t *testing.T) {
 	t.Parallel()
 

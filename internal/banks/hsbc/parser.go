@@ -247,6 +247,9 @@ func parseOCRCardTransactions(text string, periodStart, periodEnd time.Time) ([]
 			}
 			continue
 		}
+		if looksLikeStandaloneSign(line) && len(carryDescription) > 0 {
+			continue
+		}
 
 		carryDescription = carryDescription[:0]
 	}
@@ -696,6 +699,9 @@ func shouldCarryCardDescription(line string, scanning bool) bool {
 	}
 	if strings.Contains(line, "NUMERO DE CUENTA") || strings.Contains(line, "PAGINA ") {
 		return false
+	}
+	if strings.Contains(line, "SU PAGO GRACIAS") {
+		return true
 	}
 	if !scanning && !strings.Contains(line, "OPENAI") {
 		return false
