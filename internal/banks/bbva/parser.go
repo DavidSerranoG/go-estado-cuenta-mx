@@ -1,6 +1,7 @@
 package bbva
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strconv"
@@ -13,9 +14,11 @@ import (
 
 const (
 	bbvaFullDatePattern  = `[0-9]{2}/[0-9]{2}/[0-9]{4}`
-	bbvaShortDatePattern = `[0-9]{2}\s*/\s*(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)`
+	bbvaShortDatePattern = `[0-9O]{2}\s*/\s*(?:ENE|FEB|MAR|ABR|MAY|JUN|JUL|AGO|SEP|OCT|NOV|DIC)`
 	bbvaDetectThreshold  = 6
 )
+
+var errIgnoredTransactionChunk = errors.New("bbva: ignored non-transaction chunk")
 
 var (
 	accountPatterns = []*regexp.Regexp{
@@ -347,6 +350,9 @@ func parseRealTransactions(text string, periodStart, periodEnd time.Time) ([]edo
 	for _, chunk := range chunks {
 		rawTx, err := parseRealTransactionChunk(chunk, periodStart, periodEnd)
 		if err != nil {
+			if errors.Is(err, errIgnoredTransactionChunk) {
+				continue
+			}
 			warnings = append(warnings, err.Error()+": "+normalize.CollapseWhitespace(chunk))
 			continue
 		}
@@ -452,12 +458,15 @@ func parseRealTransactionChunk(chunk string, periodStart, periodEnd time.Time) (
 
 	match := realTxLeadingPattern.FindStringSubmatch(cleanChunk)
 	if len(match) != 3 {
-		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
+		return rawTransaction{}, errIgnoredTransactionChunk
 	}
 
 	remainder := strings.TrimSpace(strings.TrimPrefix(cleanChunk, match[0]))
 	moneyMatches := moneyTokenPattern.FindAllStringIndex(remainder, -1)
 	if len(moneyMatches) == 0 {
+		if strings.Contains(strings.ToUpper(remainder), "APERTURA DE CUENTA") {
+			return rawTransaction{}, errIgnoredTransactionChunk
+		}
 		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
 	}
 
@@ -484,7 +493,7 @@ func parseRealTransactionChunk(chunk string, periodStart, periodEnd time.Time) (
 
 	reference := strings.TrimSpace(remainder[referenceStart:])
 	if description == "" {
-		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
+		return rawTransaction{}, errIgnoredTransactionChunk
 	}
 
 	return buildRawTransaction(match[1], description, reference, amountValue, balanceValue, cleanChunk, periodStart, periodEnd)
@@ -938,7 +947,8 @@ func parseShortDate(value string, periodStart, periodEnd time.Time) (time.Time, 
 		return time.Time{}, fmt.Errorf("invalid short date %q", value)
 	}
 
-	day, err := strconv.Atoi(parts[0])
+	dayToken := strings.NewReplacer("O", "0", "I", "1", "L", "1").Replace(parts[0])
+	day, err := strconv.Atoi(dayToken)
 	if err != nil {
 		return time.Time{}, err
 	}
