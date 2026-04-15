@@ -36,8 +36,8 @@ var (
 	summaryPattern        = regexp.MustCompile(`(?is)total importe cargos\s*([0-9,]+\.\d{2})\s*total movimientos cargos\s*([0-9]+)\s*total importe abonos\s*([0-9,]+\.\d{2})\s*total movimientos abonos\s*([0-9]+)`)
 	legacyTxPattern       = regexp.MustCompile(`(?i)^([0-9]{2}/[0-9]{2}/[0-9]{4})\s+(.+?)\s+(ABONO|CARGO)\s+([0-9,]+\.\d{2})\s+([0-9,]+\.\d{2})$`)
 	realTxStartPattern    = regexp.MustCompile(`(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)`)
-	realTxPattern         = regexp.MustCompile(`^(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)\s*(.+?)([0-9,]+\.\d{2})([0-9,]+\.\d{2})([0-9,]+\.\d{2})\s*(.*)$`)
-	realTxAmountOnly      = regexp.MustCompile(`^(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)\s*(.+?)([0-9,]+\.\d{2})\s*(.*)$`)
+	realTxLeadingPattern  = regexp.MustCompile(`^(` + bbvaShortDatePattern + `)\s*(` + bbvaShortDatePattern + `)\s*`)
+	moneyTokenPattern     = regexp.MustCompile(`[0-9,]+\.\d{2}`)
 )
 
 // Parser parses BBVA bank statements.
@@ -448,15 +448,83 @@ func splitRealTransactionChunks(section string) []string {
 }
 
 func parseRealTransactionChunk(chunk string, periodStart, periodEnd time.Time) (rawTransaction, error) {
-	if match := realTxPattern.FindStringSubmatch(chunk); len(match) == 8 {
-		return buildRawTransaction(match[1], match[3], match[7], match[4], match[5], chunk, periodStart, periodEnd)
+	cleanChunk := trimTransactionTailNoise(normalize.CollapseWhitespace(chunk))
+
+	match := realTxLeadingPattern.FindStringSubmatch(cleanChunk)
+	if len(match) != 3 {
+		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
 	}
 
-	if match := realTxAmountOnly.FindStringSubmatch(chunk); len(match) == 6 {
-		return buildRawTransaction(match[1], match[3], match[5], match[4], "", chunk, periodStart, periodEnd)
+	remainder := strings.TrimSpace(strings.TrimPrefix(cleanChunk, match[0]))
+	moneyMatches := moneyTokenPattern.FindAllStringIndex(remainder, -1)
+	if len(moneyMatches) == 0 {
+		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
 	}
 
-	return rawTransaction{}, fmt.Errorf("bbva: line ignored")
+	description := strings.TrimSpace(remainder[:moneyMatches[0][0]])
+	amountValue := remainder[moneyMatches[0][0]:moneyMatches[0][1]]
+	referenceStart := moneyMatches[0][1]
+	balanceValue := ""
+	previousEnd := moneyMatches[0][1]
+
+	for i, idx := range moneyMatches[1:] {
+		nextStart := len(remainder)
+		if i+2 < len(moneyMatches) {
+			nextStart = moneyMatches[i+2][0]
+		}
+		if !looksLikeBalanceToken(remainder, previousEnd, idx[0], idx[1], nextStart) {
+			break
+		}
+		if balanceValue == "" {
+			balanceValue = remainder[idx[0]:idx[1]]
+		}
+		referenceStart = idx[1]
+		previousEnd = idx[1]
+	}
+
+	reference := strings.TrimSpace(remainder[referenceStart:])
+	if description == "" {
+		return rawTransaction{}, fmt.Errorf("bbva: line ignored")
+	}
+
+	return buildRawTransaction(match[1], description, reference, amountValue, balanceValue, cleanChunk, periodStart, periodEnd)
+}
+
+func looksLikeBalanceToken(value string, previousEnd, start, end, nextStart int) bool {
+	if previousEnd < 0 || start < previousEnd || end <= start || end > len(value) {
+		return false
+	}
+
+	if strings.TrimSpace(value[previousEnd:start]) != "" {
+		return false
+	}
+
+	if end == len(value) {
+		return true
+	}
+
+	if nextStart < end || nextStart > len(value) {
+		nextStart = len(value)
+	}
+
+	after := value[end]
+	if after == ' ' {
+		return true
+	}
+
+	if nextStart == end {
+		return true
+	}
+
+	if nextStart > end && strings.TrimSpace(value[end:nextStart]) == "" {
+		return true
+	}
+
+	return !isAlphaNumeric(after)
+}
+
+func isAlphaNumeric(value byte) bool {
+	return (value >= '0' && value <= '9') || (value >= 'A' && value <= 'Z') || (value >= 'a' && value <= 'z')
 }
 
 func buildRawTransaction(dateToken, description, reference, amountValue, balanceValue, rawLine string, periodStart, periodEnd time.Time) (rawTransaction, error) {
@@ -826,12 +894,20 @@ func classifyByDescription(description string) edocuenta.TransactionDirection {
 	switch {
 	case strings.Contains(upper, "SPEI ENVIADO"),
 		strings.Contains(upper, "PAGO TARJETA DE CREDITO"),
+		strings.Contains(upper, "PAGO CUENTA DE TERCERO"),
+		strings.Contains(upper, "RECAUDACION DE IMPUE"),
+		strings.Contains(upper, "AMERICAN EXPRESS"),
+		strings.Contains(upper, "ADYENMX*"),
+		strings.Contains(upper, "UBER EATS"),
+		strings.Contains(upper, "AMAZON MX"),
+		strings.Contains(upper, "CODI ENVIADO"),
 		strings.Contains(upper, "RETIRO SIN TARJETA"),
 		strings.HasPrefix(upper, "SAT"):
 		return edocuenta.TransactionDirectionDebit
 	case strings.Contains(upper, "SPEI RECIBIDO"),
 		strings.Contains(upper, "SPEI RECIBIDOS"),
 		strings.Contains(upper, "SPEI DEVUELTO"),
+		strings.Contains(upper, "ABONO POR CORRECCION"),
 		strings.Contains(upper, "DEPOSITO"),
 		strings.Contains(upper, "NOMINA"):
 		return edocuenta.TransactionDirectionCredit
@@ -888,6 +964,21 @@ func trimNoise(value string) string {
 	}
 
 	return strings.TrimSpace(value)
+}
+
+func trimTransactionTailNoise(value string) string {
+	for _, marker := range []string{
+		" LA GAT REAL ",
+		" ESTADO DE CUENTA ",
+		" PAGINA ",
+		" BBVA MEXICO, S.A.",
+	} {
+		if idx := strings.Index(strings.ToUpper(value), marker); idx != -1 {
+			value = value[:idx]
+		}
+	}
+
+	return trimNoise(value)
 }
 
 func looksLikeTransaction(line string) bool {

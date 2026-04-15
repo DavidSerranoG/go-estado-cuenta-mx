@@ -1,6 +1,7 @@
 package hsbc
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"regexp"
@@ -30,9 +31,12 @@ var (
 	flexibleAmountPattern  = regexp.MustCompile(`^\$\s*([0-9,]+\.\d{2})\s+\$\s*([0-9,]+\.\d{2})$`)
 	flexibleHeaderPattern  = regexp.MustCompile(`^\s*(.+?)\s{2,}([A-Z0-9]+)\s*$`)
 	flexibleRefPattern     = regexp.MustCompile(`^(.*)\s+([A-Z0-9]{8,})$`)
+	hsbcOCRBrandPattern    = regexp.MustCompile(`(?i)\b(?:HSBC|HSSC|HS8C|H5BC|H5B[C8]|HSB8)\b`)
 )
 
 const hsbcDetectThreshold = 6
+
+var errIgnoredOCRAmountOnlyLine = errors.New("hsbc: ignored ocr amount-only line")
 
 // Parser parses HSBC bank statements.
 type Parser struct{}
@@ -216,7 +220,9 @@ func parseOCRCardTransactions(text string, periodStart, periodEnd time.Time) ([]
 		transaction, ok, err := parseOCRCardTransaction(line, carryDescription, periodStart, periodEnd)
 		if ok {
 			if err != nil {
-				warnings = append(warnings, err.Error()+": "+line)
+				if !errors.Is(err, errIgnoredOCRAmountOnlyLine) {
+					warnings = append(warnings, err.Error()+": "+line)
+				}
 			} else {
 				transactions = append(transactions, transaction)
 				scanning = true
@@ -229,7 +235,9 @@ func parseOCRCardTransactions(text string, periodStart, periodEnd time.Time) ([]
 			transaction, endIdx, ok, err := parseSplitOCRCardTransaction(lines, i, carryDescription, periodStart, periodEnd)
 			if ok {
 				if err != nil {
-					warnings = append(warnings, err.Error()+": "+line)
+					if !errors.Is(err, errIgnoredOCRAmountOnlyLine) {
+						warnings = append(warnings, err.Error()+": "+line)
+					}
 				} else {
 					transactions = append(transactions, transaction)
 					scanning = true
@@ -245,6 +253,9 @@ func parseOCRCardTransactions(text string, periodStart, periodEnd time.Time) ([]
 			if len(carryDescription) > 2 {
 				carryDescription = carryDescription[len(carryDescription)-2:]
 			}
+			continue
+		}
+		if looksLikeStandaloneSign(line) && len(carryDescription) > 0 {
 			continue
 		}
 
@@ -308,7 +319,7 @@ func parseSplitOCRCardTransaction(lines []string, start int, carry []string, per
 
 			description := normalize.CollapseWhitespace(strings.Join(descriptionParts, " "))
 			if description == "" {
-				return edocuenta.Transaction{}, i, true, fmt.Errorf("hsbc: missing ocr description")
+				return edocuenta.Transaction{}, i, true, errIgnoredOCRAmountOnlyLine
 			}
 
 			amountCents, err := parseOCRAmountWithFX(description, amountText)
@@ -697,6 +708,9 @@ func shouldCarryCardDescription(line string, scanning bool) bool {
 	if strings.Contains(line, "NUMERO DE CUENTA") || strings.Contains(line, "PAGINA ") {
 		return false
 	}
+	if strings.Contains(line, "SU PAGO GRACIAS") {
+		return true
+	}
 	if !scanning && !strings.Contains(line, "OPENAI") {
 		return false
 	}
@@ -858,7 +872,7 @@ func movementType(sign string) edocuenta.TransactionDirection {
 
 func hsbcDetectionScore(text string) int {
 	upper := strings.ToUpper(text)
-	if !strings.Contains(upper, "HSBC") {
+	if !containsHSBCMarker(text) {
 		return 0
 	}
 
@@ -869,13 +883,22 @@ func hsbcDetectionScore(text string) int {
 	if cardPeriodPattern.MatchString(text) || flexiblePeriodPattern.MatchString(text) {
 		score += 3
 	}
+	if strings.Contains(upper, "NUMERO DE CUENTA") {
+		score += 2
+	}
 	if strings.Contains(upper, "CUENTA FLEXIBLE") {
 		score += 2
 	}
 	if strings.Contains(upper, "DESGLOSE DE MOVIMIENTOS") || strings.Contains(upper, "DETALLE MOVIMIENTOS CUENTA FLEXIBLE") {
 		score += 2
 	}
-	if hasCardTransactions(text) || hasFlexibleHeaders(text) {
+	if strings.Contains(upper, "TU PAGO REQUERIDO ESTE PERIODO") ||
+		strings.Contains(upper, "ATENCION DE QUEJAS") ||
+		strings.Contains(upper, "NOTAS ACLARATORIAS") ||
+		strings.Contains(upper, "PAGO PARA NO GENERAR INTERESES") {
+		score += 2
+	}
+	if hasCardTransactions(text) || hasFlexibleHeaders(text) || hasOCRCardSignals(text) {
 		score++
 	}
 
@@ -886,10 +909,38 @@ func hsbcDetectionScore(text string) int {
 	return score
 }
 
+func containsHSBCMarker(text string) bool {
+	upper := strings.ToUpper(text)
+	return strings.Contains(upper, "HSBC") || hsbcOCRBrandPattern.MatchString(text)
+}
+
 func hasCardTransactions(text string) bool {
 	for _, rawLine := range strings.Split(text, "\n") {
 		line := normalize.CollapseWhitespace(rawLine)
 		if cardFullTxPattern.MatchString(line) || cardOpenTxPattern.MatchString(line) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func hasOCRCardSignals(text string) bool {
+	dateLines := 0
+	amountLines := 0
+
+	for _, rawLine := range strings.Split(text, "\n") {
+		line := normalize.CollapseWhitespace(rawLine)
+		if line == "" {
+			continue
+		}
+		if strings.Contains(line, "$") {
+			amountLines++
+		}
+		if strings.Count(line, "-") >= 2 && len(line) >= 10 {
+			dateLines++
+		}
+		if dateLines >= 2 && amountLines >= 2 {
 			return true
 		}
 	}

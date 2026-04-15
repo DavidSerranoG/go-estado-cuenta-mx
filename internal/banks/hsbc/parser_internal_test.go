@@ -80,6 +80,79 @@ func TestParseSplitOCRCardTransactionAcceptsSplitSignAndAmountLines(t *testing.T
 	}
 }
 
+func TestParseOCRCardTransactionsCarriesSplitPaymentDescriptionBeforeScanning(t *testing.T) {
+	t.Parallel()
+
+	text := `DESGLOSE DE MOVIMIENTOS
+SU PAGO GRACIAS
+-
+16-Sep-2025
+17-Sep-2025
+$25,000.00
+12-Sep-2025
+15-Sep-2025
+RUGR590104PR9 SERV GAS PREMIER
++|$868.07
+ATENCION DE QUEJAS`
+
+	periodStart := time.Date(2025, 9, 15, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2025, 10, 12, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings, err := parseOCRCardTransactions(text, periodStart, periodEnd)
+	if err != nil {
+		t.Fatalf("parseOCRCardTransactions() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 2 {
+		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
+	}
+	if transactions[0].Description != "SU PAGO GRACIAS" {
+		t.Fatalf("first description = %q, want SU PAGO GRACIAS", transactions[0].Description)
+	}
+	if transactions[0].Direction != "credit" {
+		t.Fatalf("first direction = %q, want credit", transactions[0].Direction)
+	}
+	if transactions[0].AmountCents != 2500000 {
+		t.Fatalf("first amount = %d, want 2500000", transactions[0].AmountCents)
+	}
+}
+
+func TestParseOCRCardTransactionsIgnoresAmountOnlyNoiseBlocks(t *testing.T) {
+	t.Parallel()
+
+	text := `DESGLOSE DE MOVIMIENTOS
+14-May-2025
+14-May-2025
+$65,928.98
+12-May-2025
+13-May-2025
+VPS 100716CK9 TELCEL
++|$15.00
+ATENCION DE QUEJAS`
+
+	periodStart := time.Date(2025, 5, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2025, 6, 12, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings, err := parseOCRCardTransactions(text, periodStart, periodEnd)
+	if err != nil {
+		t.Fatalf("parseOCRCardTransactions() error = %v", err)
+	}
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 1 {
+		t.Fatalf("len(transactions) = %d, want 1", len(transactions))
+	}
+	if transactions[0].Description != "VPS 100716CK9 TELCEL" {
+		t.Fatalf("description = %q, want VPS 100716CK9 TELCEL", transactions[0].Description)
+	}
+	if transactions[0].AmountCents != 1500 {
+		t.Fatalf("amount = %d, want 1500", transactions[0].AmountCents)
+	}
+}
+
 func TestParseCardPeriodAcceptsOCRMonthDigits(t *testing.T) {
 	t.Parallel()
 
@@ -121,6 +194,22 @@ DETALLE MOVIMIENTOS CUENTA FLEXIBLE No. 6529009644
 
 	if score := hsbcDetectionScore(text); score <= 0 {
 		t.Fatalf("expected positive HSBC score, got %d", score)
+	}
+}
+
+func TestHSBCDetectionScoreAcceptsOCRBrandVariants(t *testing.T) {
+	t.Parallel()
+
+	text := `q > > Hssc
+Numero de cuenta: 5470 7498 11846577
+DESGLOSE DE MOVIMIENTOS
+15-Sep-2025
+16-Sep-2025
+$25,000.00
+ATENCION DE QUEJAS`
+
+	if score := hsbcDetectionScore(text); score <= 0 {
+		t.Fatalf("expected positive HSBC score for OCR brand variant, got %d", score)
 	}
 }
 

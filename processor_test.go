@@ -119,6 +119,37 @@ func TestProcessorRetriesWithRescueExtractorWhenBBVACardTextIsIncomplete(t *test
 	}
 }
 
+func TestProcessorUsesRescueExtractorForOCRDegradedHSBCText(t *testing.T) {
+	t.Parallel()
+
+	rescueCalls := 0
+	processor := edocuenta.New(
+		edocuenta.WithExtractor(staticExtractor{text: "q > >\n"}),
+		edocuenta.WithRescueExtractor(countingExtractor{text: rescuedHSBCCardText, called: &rescueCalls}),
+		edocuenta.WithParser(hsbc.New()),
+	)
+
+	result, err := processor.ParsePDFResult(context.Background(), []byte("pdf"))
+	if err != nil {
+		t.Fatalf("parse pdf with rescue extractor: %v", err)
+	}
+	if rescueCalls != 1 {
+		t.Fatalf("expected rescue extractor to run once, got %d", rescueCalls)
+	}
+	if result.Statement.Bank != "hsbc" {
+		t.Fatalf("unexpected bank %q", result.Statement.Bank)
+	}
+	if result.Statement.AccountNumber != "5470749811846577" {
+		t.Fatalf("unexpected account %q", result.Statement.AccountNumber)
+	}
+	if len(result.Statement.Transactions) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(result.Statement.Transactions))
+	}
+	if result.Extraction.SelectedExtractor != "rescue" || !result.Extraction.UsedRescue {
+		t.Fatalf("unexpected extraction diagnostics %+v", result.Extraction)
+	}
+}
+
 func TestProcessorPreservesOriginalErrorWhenRescueExtractorFails(t *testing.T) {
 	t.Parallel()
 
@@ -189,6 +220,22 @@ Número de cuenta: XXXXXX9919
 MXP $194.56 TIPO DE CAMBIO $1.00
 TOTAL CARGOS $413.24
 TOTAL ABONOS -$15,297.64
+ATENCION DE QUEJAS`
+
+const rescuedHSBCCardText = `q > > Hssc
+Numero de cuenta: 5470 7498 11846577
+TU PAGO REQUERIDO ESTE PERIODO
+15-Sep-2025 al 12-Oct-2025
+DESGLOSE DE MOVIMIENTOS
+SU PAGO GRACIAS
+-
+16-Sep-2025
+17-Sep-2025
+$25,000.00
+12-Sep-2025
+15-Sep-2025
+RUGR590104PR9 SERV GAS PREMIER
++|$868.07
 ATENCION DE QUEJAS`
 
 type countingExtractor struct {
