@@ -478,10 +478,14 @@ func parseRealTransactionChunk(chunk string, periodStart, periodEnd time.Time) (
 
 	for i, idx := range moneyMatches[1:] {
 		nextStart := len(remainder)
+		adjacentNextValue := ""
 		if i+2 < len(moneyMatches) {
 			nextStart = moneyMatches[i+2][0]
+			if nextStart == idx[1] {
+				adjacentNextValue = remainder[moneyMatches[i+2][0]:moneyMatches[i+2][1]]
+			}
 		}
-		if !looksLikeBalanceToken(remainder, previousEnd, idx[0], idx[1], nextStart) {
+		if !looksLikeBalanceToken(remainder, previousEnd, idx[0], idx[1], nextStart, remainder[idx[0]:idx[1]], adjacentNextValue) {
 			break
 		}
 		if balanceValue == "" {
@@ -499,7 +503,7 @@ func parseRealTransactionChunk(chunk string, periodStart, periodEnd time.Time) (
 	return buildRawTransaction(match[1], description, reference, amountValue, balanceValue, cleanChunk, periodStart, periodEnd)
 }
 
-func looksLikeBalanceToken(value string, previousEnd, start, end, nextStart int) bool {
+func looksLikeBalanceToken(value string, previousEnd, start, end, nextStart int, currentToken string, adjacentNextToken string) bool {
 	if previousEnd < 0 || start < previousEnd || end <= start || end > len(value) {
 		return false
 	}
@@ -522,7 +526,7 @@ func looksLikeBalanceToken(value string, previousEnd, start, end, nextStart int)
 	}
 
 	if nextStart == end {
-		return true
+		return adjacentMoneyTokensLookLikeBalancePair(currentToken, adjacentNextToken)
 	}
 
 	if nextStart > end && strings.TrimSpace(value[end:nextStart]) == "" {
@@ -530,6 +534,31 @@ func looksLikeBalanceToken(value string, previousEnd, start, end, nextStart int)
 	}
 
 	return !isAlphaNumeric(after)
+}
+
+func adjacentMoneyTokensLookLikeBalancePair(currentToken, nextToken string) bool {
+	currentDigits := integerDigitsCount(currentToken)
+	nextDigits := integerDigitsCount(nextToken)
+	if currentDigits == 0 || nextDigits == 0 {
+		return false
+	}
+
+	// Reject obvious OCR glue like `5463155.1002.01`, where the trailing token
+	// is too short to be a real operation/liquidation balance pair.
+	return !(currentDigits >= 4 && nextDigits <= 2)
+}
+
+func integerDigitsCount(value string) int {
+	clean := normalize.NormalizeOCRMoneyToken(value)
+	integerPart := clean
+	if idx := strings.IndexByte(clean, '.'); idx != -1 {
+		integerPart = clean[:idx]
+	}
+	integerPart = strings.TrimLeft(integerPart, "0")
+	if integerPart == "" {
+		return 1
+	}
+	return len(integerPart)
 }
 
 func isAlphaNumeric(value byte) bool {

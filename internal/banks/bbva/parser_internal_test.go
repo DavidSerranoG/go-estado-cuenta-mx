@@ -83,3 +83,60 @@ TOTAL IMPORTE ABONOS 20,496.35 TOTAL MOVIMIENTOS ABONOS 5`
 		t.Fatalf("second amount = %d, want 500000", transactions[1].AmountCents)
 	}
 }
+
+func TestParseRealTransactionsRejectsAdjacentOCRMoneyAsBalance(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Dólares
+Periodo DEL 01/07/2025 AL 31/07/2025
+No. de Cuenta 0484984080
+
+Información Financiera MONEDA DOLARES
+Saldo Anterior 25,444.87
+Depósitos / Abonos (+) 2 4,787.83
+Retiros / Cargos (-) 3 20,052.00
+Saldo Final 10,180.70
+
+Detalle de Movimientos Realizados
+02/JUL   02/JUL PAGO CUENTA DE TERCERO                                                                      2,289.83       27,734.70          27,734.70
+                 0085065013 BNET 0111250892 Factura C4409
+16/JUL   16/JUL TRASPASO ENTRE CUENTAS                                                         20,000.00
+                 5463155.1002.01 FOLIO: 0000000 355059.80MXP
+16/JUL   16/JUL PAGO CUENTA DE TERCERO                                                                      2,498.00       10,232.70          10,180.70
+                 0047008005 BNET 0111250892 FACTURA B10D8
+17/JUL   16/JUL SPO*QUARTYARD                                                                      22.00                   10,210.70          10,180.70
+                 ******0434 USD 22.00TC001.0000AUT: 364009
+18/JUL   16/JUL SQ *MEI SEMONES                                                                    30.00                   10,180.70          10,180.70
+                 ******0434 USD 30.00TC001.0000AUT: 553261
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 20,052.00 TOTAL MOVIMIENTOS CARGOS 3
+TOTAL IMPORTE ABONOS 4,787.83 TOTAL MOVIMIENTOS ABONOS 2`
+
+	periodStart := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2025, 7, 31, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 5 {
+		t.Fatalf("len(transactions) = %d, want 5", len(transactions))
+	}
+	if transactions[1].Description != "TRASPASO ENTRE CUENTAS" {
+		t.Fatalf("second description = %q, want TRASPASO ENTRE CUENTAS", transactions[1].Description)
+	}
+	if transactions[1].AmountCents != 2000000 {
+		t.Fatalf("second amount = %d, want 2000000", transactions[1].AmountCents)
+	}
+	if transactions[1].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("second direction = %q, want debit", transactions[1].Direction)
+	}
+	if transactions[2].AmountCents != 249800 {
+		t.Fatalf("third amount = %d, want 249800", transactions[2].AmountCents)
+	}
+	if transactions[2].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("third direction = %q, want credit", transactions[2].Direction)
+	}
+}
