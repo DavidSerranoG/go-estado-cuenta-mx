@@ -16,6 +16,13 @@ func TestClassifyByDescriptionResolvesKnownStatementPatterns(t *testing.T) {
 		"ADYENMX*UBER EATS RFC: UPM 200220LK5":      edocuenta.TransactionDirectionDebit,
 		"AMAZON MX MARKETPLACE RFC: ANE 140618P37":  edocuenta.TransactionDirectionDebit,
 		"AMAZON MX RFC: ANE 140618P37":              edocuenta.TransactionDirectionDebit,
+		"SERV BANCA INTERNET":                       edocuenta.TransactionDirectionDebit,
+		"IVA COM SERV BCA INTERNET":                 edocuenta.TransactionDirectionDebit,
+		"SU PAGO EN EFECTIVO":                       edocuenta.TransactionDirectionCredit,
+		"COMISION POR MEMBRESIA":                    edocuenta.TransactionDirectionDebit,
+		"BONIFICACION DE COMISION":                  edocuenta.TransactionDirectionCredit,
+		"IVA COM MEMBRESIA":                         edocuenta.TransactionDirectionDebit,
+		"BONIFICACION IVA COMISION":                 edocuenta.TransactionDirectionCredit,
 	}
 
 	for description, want := range cases {
@@ -251,5 +258,112 @@ TOTAL IMPORTE ABONOS 50,449.88 TOTAL MOVIMIENTOS ABONOS 4`
 	}
 	if secondBlizzard.AmountCents != 104988 {
 		t.Fatalf("second BLIZZARD amount = %d, want 104988", secondBlizzard.AmountCents)
+	}
+}
+
+func TestParseRealTransactionsResolvesLegacyBankingFeesAndCashPayments(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 23/08/2020 AL 22/09/2020
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 1,000.00
+Depósitos / Abonos (+) 2 4,960.00
+Retiros / Cargos (-) 2 5.80
+Saldo Final 5,954.20
+
+Detalle de Movimientos Realizados
+04/SEP       04/SEP        SERV BANCA INTERNET                                                                    5.00
+                                                                                         Referencia OPS SERV BCA IN
+04/SEP       04/SEP        IVA COM SERV BCA INTERNET                                                              0.80
+                                                                                         Referencia IVA COM SERV BC
+11/SEP       11/SEP        SU PAGO EN EFECTIVO                                                                             3,600.00   4,594.20            4,594.20
+                           EN COMERCIO
+18/SEP       18/SEP        SU PAGO EN EFECTIVO                                                                             1,360.00   5,954.20            5,954.20
+                           EN COMERCIO
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 5.80 TOTAL MOVIMIENTOS CARGOS 2
+TOTAL IMPORTE ABONOS 4,960.00 TOTAL MOVIMIENTOS ABONOS 2`
+
+	periodStart := time.Date(2020, 8, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2020, 9, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 4 {
+		t.Fatalf("len(transactions) = %d, want 4", len(transactions))
+	}
+
+	var debitSum, creditSum int64
+	for _, tx := range transactions {
+		switch tx.Direction {
+		case edocuenta.TransactionDirectionDebit:
+			debitSum += tx.AmountCents
+		case edocuenta.TransactionDirectionCredit:
+			creditSum += tx.AmountCents
+		}
+	}
+	if debitSum != 580 {
+		t.Fatalf("debitSum = %d, want 580", debitSum)
+	}
+	if creditSum != 496000 {
+		t.Fatalf("creditSum = %d, want 496000", creditSum)
+	}
+}
+
+func TestParseRealTransactionsResolvesMembershipChargesAndReversals(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 23/01/2022 AL 22/02/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 65,013.18
+Depósitos / Abonos (+) 2 63.80
+Retiros / Cargos (-) 2 63.80
+Saldo Final 65,013.18
+
+Detalle de Movimientos Realizados
+24/ENE       23/ENE        COMISION POR MEMBRESIA                                                                55.00
+                           POR MANTENER SALDO INFERIOR AL MINIMO                          Referencia 23DIC21/22ENE22
+24/ENE       23/ENE        BONIFICACION DE COMISION                                                                        55.00
+                           COMISION POR MEMBRESIA                                         Referencia 23DIC21/22ENE22
+24/ENE       23/ENE        IVA COM MEMBRESIA                                                                      8.80
+                           16%
+24/ENE       23/ENE        BONIFICACION IVA COMISION                                                                           8.80   65,013.18        65,013.18
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 63.80 TOTAL MOVIMIENTOS CARGOS 2
+TOTAL IMPORTE ABONOS 63.80 TOTAL MOVIMIENTOS ABONOS 2`
+
+	periodStart := time.Date(2022, 1, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 2, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 4 {
+		t.Fatalf("len(transactions) = %d, want 4", len(transactions))
+	}
+
+	wantKinds := []edocuenta.TransactionDirection{
+		edocuenta.TransactionDirectionDebit,
+		edocuenta.TransactionDirectionCredit,
+		edocuenta.TransactionDirectionDebit,
+		edocuenta.TransactionDirectionCredit,
+	}
+	for i, want := range wantKinds {
+		if transactions[i].Direction != want {
+			t.Fatalf("transactions[%d].Direction = %q, want %q", i, transactions[i].Direction, want)
+		}
 	}
 }
