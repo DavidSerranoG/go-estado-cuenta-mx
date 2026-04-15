@@ -848,6 +848,9 @@ func resolveWithDescriptionHints(items []rawTransaction) bool {
 
 		hint := classifyByDescription(items[i].description)
 		if hint == "" {
+			hint = classifyByStructure(items[i])
+		}
+		if hint == "" {
 			continue
 		}
 
@@ -925,6 +928,26 @@ func resolveWithSummary(items []rawTransaction, summary *transactionSummary) boo
 	}
 
 	return false
+}
+
+func classifyByStructure(item rawTransaction) edocuenta.TransactionDirection {
+	if item.balanceCents != nil {
+		return ""
+	}
+
+	upperDescription := strings.ToUpper(item.description)
+	upperReference := strings.ToUpper(item.reference)
+	if strings.Contains(upperDescription, "SPEI") || strings.Contains(upperDescription, "DEPOSITO") {
+		return ""
+	}
+	if !strings.Contains(upperReference, "AUT:") {
+		return ""
+	}
+	if strings.Contains(upperReference, "RFC:") || strings.Contains(upperReference, "REFERENCIA ******") {
+		return edocuenta.TransactionDirectionDebit
+	}
+
+	return ""
 }
 
 func classifyByDescription(description string) edocuenta.TransactionDirection {

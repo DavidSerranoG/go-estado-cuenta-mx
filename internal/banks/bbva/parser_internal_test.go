@@ -140,3 +140,116 @@ TOTAL IMPORTE ABONOS 4,787.83 TOTAL MOVIMIENTOS ABONOS 2`
 		t.Fatalf("third direction = %q, want credit", transactions[2].Direction)
 	}
 }
+
+func TestParseRealTransactionsResolvesLegacyMerchantDebitsAndBlizzardReversal(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 23/02/2021 AL 22/03/2021
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA DOLARES
+Saldo Anterior 9,759.79
+Depósitos / Abonos (+) 4 50,449.88
+Retiros / Cargos (-) 18 54,644.28
+Saldo Final 5,565.39
+
+Detalle de Movimientos Realizados
+23/FEB 23/FEB GOOGLE *Domains 260.00 9,499.79 9,499.79
+RFC: 13:12 AUT: 272732 Referencia ******6863
+23/FEB 23/FEB TELNOR VENTA INT MU 1,038.00 8,461.79 8,461.79
+RFC: TNO 8105076Q8 13:17 AUT: 325592 Referencia ******6863
+25/FEB 25/FEB SPEI RECIBIDOSCOTIABANK 23,200.00 31,661.79 31,661.79
+0210225pago david febrero Referencia 0141751678 044
+25/FEB 25/FEB PAGO TARJETA DE CREDITO 7,300.56 24,361.23 24,361.23
+CUENTA: BMOV Referencia 3244313114
+25/FEB 25/FEB SPEI RECIBIDOSCOTIABANK 23,200.00 47,561.23 47,561.23
+0210225pago david serrano Referencia 0141964163 044 00044028256032553553 2021022540044B36K0000024918010 PEREZ HERNANDEZ ANA LIA
+25/FEB 25/FEB SPEI ENVIADO HSBC 23,000.00 24,561.23 24,561.23
+2502210A MI HSBC Referencia 0087476647 021 00021028064581373813 MBAN01002102250087476647 DAVID ALBERTO SERRANO GARCIA
+25/FEB 25/FEB SPEI ENVIADO HSBC 15,000.00 9,561.23 9,561.23
+2502210A MI HSBC Referencia 0087947916 021 00021028064581373813 MBAN01002102260087947916 DAVID ALBERTO SERRANO GARCIA
+04/MAR 04/MAR Amazon web services 3.53 9,557.70 9,557.70
+RFC: 06:17 AUT: 853238 Referencia ******6863
+06/MAR 06/MAR PAGO CUENTA DE TERCERO 200.00 9,357.70 9,357.70
+BNET 1424394380 PRESTAMO A VENUS Referencia 4040585509
+09/MAR 09/MAR 1PAYLU*RIOTGAMES 299.00 9,058.70 9,058.70
+RFC: PME 1706097P1 01:34 AUT: 420987 Referencia ******6863
+09/MAR 09/MAR ADYENMX*UBER EATS 214.40 8,844.30 8,844.30
+RFC: UPM 200220LK5 19:40 AUT: 467160 Referencia ******6863
+16/MAR 12/MAR SERV GAS PREMIER 1,032.01
+RFC: RUGR590104PR9 17:20 AUT: 704881 Referencia ******7339
+16/MAR 13/MAR STEREN 595.00
+RFC: ESC 060315963 15:04 AUT: 239134 Referencia ******7339
+16/MAR 13/MAR FERRETERIA HIPODROMO 133.53
+RFC: FHI 120704JN7 15:32 AUT: 605518 Referencia ******7339
+16/MAR 13/MAR SUSHI BONSAI 270.00
+RFC: MAAA870302JF1 15:57 AUT: 905111 Referencia ******7339
+16/MAR 14/MAR OFFICE DEPOT TIJUANA 491.37
+RFC: ODM 950324V2A 18:44 AUT: 417909 Referencia ******7339
+16/MAR 16/MAR BLIZZARD ENTERTAINM 1,049.88 5,272.51 2,505.51
+RFC: 02:17 AUT: 352015 Referencia ******6863
+17/MAR 16/MAR BP*REFACCION 2,698.00
+RFC: PLA 120807BK0 15:21 AUT: 401194 Referencia ******7339
+17/MAR 16/MAR STEREN 69.00
+RFC: ESC 060315963 16:10 AUT: 887722 Referencia ******7339
+17/MAR 17/MAR BLIZZARD ENTERTAINM 1,049.88 3,555.39 3,555.39
+RFC: 00:00 AUT: Referencia ******6863
+22/MAR 20/MAR SUSHI BONSAI 990.00
+RFC: MAAA870302JF1 15:38 AUT: 453570 Referencia ******7339
+22/MAR 22/MAR SPEI RECIBIDOHSBC 3,000.00 5,565.39 5,565.39
+0000001A mi Bancomer Referencia 0179306988 021
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 54,644.28 TOTAL MOVIMIENTOS CARGOS 18
+TOTAL IMPORTE ABONOS 50,449.88 TOTAL MOVIMIENTOS ABONOS 4`
+
+	periodStart := time.Date(2021, 2, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2021, 3, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 22 {
+		t.Fatalf("len(transactions) = %d, want 22", len(transactions))
+	}
+
+	var debitSum, creditSum int64
+	var firstBlizzard, secondBlizzard *edocuenta.Transaction
+	for i := range transactions {
+		switch transactions[i].Direction {
+		case edocuenta.TransactionDirectionDebit:
+			debitSum += transactions[i].AmountCents
+		case edocuenta.TransactionDirectionCredit:
+			creditSum += transactions[i].AmountCents
+		}
+		if transactions[i].Description == "BLIZZARD ENTERTAINM" {
+			if firstBlizzard == nil {
+				firstBlizzard = &transactions[i]
+			} else {
+				secondBlizzard = &transactions[i]
+			}
+		}
+	}
+
+	if debitSum != 5464428 {
+		t.Fatalf("debitSum = %d, want 5464428", debitSum)
+	}
+	if creditSum != 5044988 {
+		t.Fatalf("creditSum = %d, want 5044988", creditSum)
+	}
+	if firstBlizzard == nil || secondBlizzard == nil {
+		t.Fatalf("expected both BLIZZARD transactions, got first=%v second=%v", firstBlizzard, secondBlizzard)
+	}
+	if firstBlizzard.Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("first BLIZZARD direction = %q, want debit", firstBlizzard.Direction)
+	}
+	if secondBlizzard.Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("second BLIZZARD direction = %q, want credit", secondBlizzard.Direction)
+	}
+	if secondBlizzard.AmountCents != 104988 {
+		t.Fatalf("second BLIZZARD amount = %d, want 104988", secondBlizzard.AmountCents)
+	}
+}
