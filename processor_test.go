@@ -99,7 +99,7 @@ func TestProcessorRetriesWithRescueExtractorWhenBBVACardTextIsIncomplete(t *test
 	if statement.Bank != "bbva" {
 		t.Fatalf("unexpected bank %q", statement.Bank)
 	}
-	if statement.AccountNumber != "XXXXXX9919" {
+	if statement.AccountNumber != "XXXXXX4242" {
 		t.Fatalf("unexpected account %q", statement.AccountNumber)
 	}
 	if len(statement.Transactions) != 3 {
@@ -139,7 +139,7 @@ func TestProcessorUsesRescueExtractorForOCRDegradedHSBCText(t *testing.T) {
 	if result.Statement.Bank != "hsbc" {
 		t.Fatalf("unexpected bank %q", result.Statement.Bank)
 	}
-	if result.Statement.AccountNumber != "5470749811846577" {
+	if result.Statement.AccountNumber != "4000000000000001" {
 		t.Fatalf("unexpected account %q", result.Statement.AccountNumber)
 	}
 	if len(result.Statement.Transactions) != 2 {
@@ -171,11 +171,11 @@ func TestProcessorPreservesOriginalErrorWhenRescueExtractorFails(t *testing.T) {
 }
 
 const sampleHSBCText = `HSBC MEXICO
-NÚMERO DE CUENTA: 5470 7498 1184 6577
+NÚMERO DE CUENTA: 4000 0000 0000 0001
 TU PAGO REQUERIDO ESTE PERIODO
 15-Sep-2025 al 12-Oct-2025
 16-Sep-202517-Sep-2025SU PAGO GRACIAS-         $25,000.00
-12-Sep-202515-Sep-2025RUGR590104PR9 SERV GAS PREMIER       TIJ+$868.07`
+12-Sep-202515-Sep-2025RFCDEMO0101 SERV GAS DEMO          CDMX+$868.07`
 
 const sampleFlexibleHSBCWithBBVAMention = `CUENTA FLEXIBLE
 Estado de Cuenta
@@ -193,28 +193,28 @@ SerialRetiroCargoDepósitoAbonoSaldo
 $ 25,000.00 $ 34,858.21
 InformaciónSPEI´s Recibidos durante el periodo del 01022026 al 28022026
 1202202612:29:41BBVA BANCOMERCLIENTE
-00012028015289076108a mi hsbc$ 330,000.00MBAN0100`
+00012028000000000018a mi hsbc$ 330,000.00MBAN0100`
 
 const degradedBBVACardText = `BBVA
 TARJETA AZUL BBVA (CLASICA)
-Número de tarjeta: 4772913064069919
+Número de tarjeta: 4000000000004242
 Periodo: 25-feb-2026 al 24-mar-2026
 DESGLOSE DE MOVIMIENTOS
-CARGOS,COMPRAS Y ABONOS REGULARES(NO A MESES) Tarjeta titular: XXXXXXXXXXXX9919
+CARGOS,COMPRAS Y ABONOS REGULARES(NO A MESES) Tarjeta titular: XXXXXXXXXXXX4242
 04-mar-2026 04-mar-2026 BMOVIL.PAGO TDC - $15,297.64
-Número de cuenta: XXXXXX9919
+Número de cuenta: XXXXXX4242
 04-mar-2026 06-mar-2026 AMAZON WEB SERVICES ; Tarjeta Digital ***2932 + $218.68
 TOTAL CARGOS $413.24
 TOTAL ABONOS -$15,297.64`
 
 const rescuedBBVACardText = `BBVA
 TARJETA AZUL BBVA (CLASICA)
-Número de tarjeta: 4772913064069919
+Número de tarjeta: 4000000000004242
 Periodo: 25-feb-2026 al 24-mar-2026
 DESGLOSE DE MOVIMIENTOS
-CARGOS,COMPRAS Y ABONOS REGULARES(NO A MESES) Tarjeta titular: XXXXXXXXXXXX9919
+CARGOS,COMPRAS Y ABONOS REGULARES(NO A MESES) Tarjeta titular: XXXXXXXXXXXX4242
 04-mar-2026 04-mar-2026 BMOVIL.PAGO TDC - $15,297.64
-Número de cuenta: XXXXXX9919
+Número de cuenta: XXXXXX4242
 04-mar-2026 06-mar-2026 AMAZON WEB SERVICES ; Tarjeta Digital ***2932 + $218.68
 15-mar-2026 17-mar-2026 MVBILLING.COM ; Tarjeta Digital ***2932 + $194.56
 MXP $194.56 TIPO DE CAMBIO $1.00
@@ -223,7 +223,7 @@ TOTAL ABONOS -$15,297.64
 ATENCION DE QUEJAS`
 
 const rescuedHSBCCardText = `q > > Hssc
-Numero de cuenta: 5470 7498 11846577
+Numero de cuenta: 4000 0000 0000 0001
 TU PAGO REQUERIDO ESTE PERIODO
 15-Sep-2025 al 12-Oct-2025
 DESGLOSE DE MOVIMIENTOS
@@ -234,7 +234,7 @@ SU PAGO GRACIAS
 $25,000.00
 12-Sep-2025
 15-Sep-2025
-RUGR590104PR9 SERV GAS PREMIER
+RFCDEMO0101 SERV GAS DEMO
 +|$868.07
 ATENCION DE QUEJAS`
 

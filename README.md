@@ -189,7 +189,7 @@ Esos comandos son para flujos de desarrollo, no forman parte de la API pública
 principal.
 
 Consulta las [Notas de desarrollo](docs/development.md) para validación local,
-pruebas con PDFs reales y generación de fixtures.
+pruebas sobre corpus privado no versionado y generación de fixtures sanitizados.
 
 ## Estructura Del Proyecto
 

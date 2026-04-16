@@ -39,9 +39,9 @@ func TestClassifyByDescriptionResolvesKnownStatementPatterns(t *testing.T) {
 
 	cases := map[string]edocuenta.TransactionDirection{
 		"ABONO POR CORRECCION WWW ALIEXPRESS COM":   edocuenta.TransactionDirectionCredit,
-		"ADYENMX*UBER EATS RFC: UPM 200220LK5":      edocuenta.TransactionDirectionDebit,
-		"AMAZON MX MARKETPLACE RFC: ANE 140618P37":  edocuenta.TransactionDirectionDebit,
-		"AMAZON MX RFC: ANE 140618P37":              edocuenta.TransactionDirectionDebit,
+		"ADYENMX*UBER EATS RFC: DEMO010101AAA":      edocuenta.TransactionDirectionDebit,
+		"AMAZON MX MARKETPLACE RFC: DEMO010101AAA":  edocuenta.TransactionDirectionDebit,
+		"AMAZON MX RFC: DEMO010101AAA":              edocuenta.TransactionDirectionDebit,
 		"SERV BANCA INTERNET":                       edocuenta.TransactionDirectionDebit,
 		"IVA COM SERV BCA INTERNET":                 edocuenta.TransactionDirectionDebit,
 		"SU PAGO EN EFECTIVO":                       edocuenta.TransactionDirectionCredit,
@@ -64,7 +64,7 @@ func TestParseRealTransactionsRepairsOCRLeadingODates(t *testing.T) {
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 09/03/2019 AL 22/03/2019
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 0.00
@@ -83,12 +83,12 @@ REF:02190EMP741923257217 CIE:0844985 Referencia UIA:4313111
 19/MAR 19/MAR DEPOSITO EFECTIVO PRACTIC 5,500.00 12,033.00 10,912.80
 MAR19 15:22 PRAC 4256 FOLIO:4605 Referencia ******7610
 20/MAR 19/MAR ESTACION REFORMA * 1,120.20 10,912.80 10,912.80
-RFC: ESP 080211R43 19:38 AUT: 248789 Referencia *****7339
+RFC: DEMO010101AAA 19:38 AUT: 248789 Referencia *****7339
 21/MAR 21/MAR SPEI RECIBIDOBANAMEX 0 4,491.30 15,404.10 15,404.10
 7910000PORTABILIDAD DE NOMINA Referencia 005324087 002
 00005256782925183090
 2019032140002NNNN0105797708092
-DAVID ALBERTO,SERRANO/GARCIA
+CLIENTE,DEMO/UNO
 22/MAR 22/MAR 2242095435TRANSFERENCIA PR 5.05 15,409.15 15,409.15
 Referencia OP
 
@@ -117,7 +117,7 @@ func TestParseRealTransactionsRejectsAdjacentOCRMoneyAsBalance(t *testing.T) {
 	text := `Estado de Cuenta
 Libretón Dólares
 Periodo DEL 01/07/2025 AL 31/07/2025
-No. de Cuenta 0484984080
+No. de Cuenta 0000000002
 
 Información Financiera MONEDA DOLARES
 Saldo Anterior 25,444.87
@@ -127,11 +127,11 @@ Saldo Final 10,180.70
 
 Detalle de Movimientos Realizados
 02/JUL   02/JUL PAGO CUENTA DE TERCERO                                                                      2,289.83       27,734.70          27,734.70
-                 0085065013 BNET 0111250892 Factura C4409
+                 0000000001 BNET 0000000001 FACTURA DEMO1
 16/JUL   16/JUL TRASPASO ENTRE CUENTAS                                                         20,000.00
                  5463155.1002.01 FOLIO: 0000000 355059.80MXP
 16/JUL   16/JUL PAGO CUENTA DE TERCERO                                                                      2,498.00       10,232.70          10,180.70
-                 0047008005 BNET 0111250892 FACTURA B10D8
+                 0000000002 BNET 0000000001 FACTURA DEMO2
 17/JUL   16/JUL SPO*QUARTYARD                                                                      22.00                   10,210.70          10,180.70
                  ******0434 USD 22.00TC001.0000AUT: 364009
 18/JUL   16/JUL SQ *MEI SEMONES                                                                    30.00                   10,180.70          10,180.70
@@ -168,7 +168,7 @@ func TestParseRealTransactionsResolvesLegacyMerchantDebitsAndBlizzardReversal(t 
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 23/02/2021 AL 22/03/2021
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA DOLARES
 Saldo Anterior 9,759.79
@@ -180,47 +180,47 @@ Detalle de Movimientos Realizados
 23/FEB 23/FEB GOOGLE *Domains 260.00 9,499.79 9,499.79
 RFC: 13:12 AUT: 272732 Referencia ******6863
 23/FEB 23/FEB TELNOR VENTA INT MU 1,038.00 8,461.79 8,461.79
-RFC: TNO 8105076Q8 13:17 AUT: 325592 Referencia ******6863
+RFC: DEMO010101AAA 13:17 AUT: 325592 Referencia ******6863
 25/FEB 25/FEB SPEI RECIBIDOSCOTIABANK 23,200.00 31,661.79 31,661.79
 0210225pago david febrero Referencia 0141751678 044
 25/FEB 25/FEB PAGO TARJETA DE CREDITO 7,300.56 24,361.23 24,361.23
 CUENTA: BMOV Referencia 3244313114
 25/FEB 25/FEB SPEI RECIBIDOSCOTIABANK 23,200.00 47,561.23 47,561.23
-0210225pago david serrano Referencia 0141964163 044 00044028256032553553 2021022540044B36K0000024918010 PEREZ HERNANDEZ ANA LIA
+0210225pago cliente demo Referencia 0141964163 044 00044000000000000000 2021022540044DEMO0000000000000 CLIENTE DEMO DOS
 25/FEB 25/FEB SPEI ENVIADO HSBC 23,000.00 24,561.23 24,561.23
-2502210A MI HSBC Referencia 0087476647 021 00021028064581373813 MBAN01002102250087476647 DAVID ALBERTO SERRANO GARCIA
+2502210A MI CUENTA DEMO Referencia 0087476647 021 00021028000000000000 MBAN01002102250087476647 CLIENTE DEMO UNO
 25/FEB 25/FEB SPEI ENVIADO HSBC 15,000.00 9,561.23 9,561.23
-2502210A MI HSBC Referencia 0087947916 021 00021028064581373813 MBAN01002102260087947916 DAVID ALBERTO SERRANO GARCIA
+2502210A MI CUENTA DEMO Referencia 0087947916 021 00021028000000000000 MBAN01002102260087947916 CLIENTE DEMO UNO
 04/MAR 04/MAR Amazon web services 3.53 9,557.70 9,557.70
 RFC: 06:17 AUT: 853238 Referencia ******6863
 06/MAR 06/MAR PAGO CUENTA DE TERCERO 200.00 9,357.70 9,357.70
-BNET 1424394380 PRESTAMO A VENUS Referencia 4040585509
+BNET 0000000003 PRESTAMO DEMO Referencia 4040585509
 09/MAR 09/MAR 1PAYLU*RIOTGAMES 299.00 9,058.70 9,058.70
-RFC: PME 1706097P1 01:34 AUT: 420987 Referencia ******6863
+RFC: DEMO010101AAA 01:34 AUT: 420987 Referencia ******6863
 09/MAR 09/MAR ADYENMX*UBER EATS 214.40 8,844.30 8,844.30
-RFC: UPM 200220LK5 19:40 AUT: 467160 Referencia ******6863
+RFC: DEMO010101AAA 19:40 AUT: 467160 Referencia ******6863
 16/MAR 12/MAR SERV GAS PREMIER 1,032.01
-RFC: RUGR590104PR9 17:20 AUT: 704881 Referencia ******7339
+RFC: DEMO010101AAA 17:20 AUT: 704881 Referencia ******7339
 16/MAR 13/MAR STEREN 595.00
-RFC: ESC 060315963 15:04 AUT: 239134 Referencia ******7339
+RFC: DEMO010101AAA 15:04 AUT: 239134 Referencia ******7339
 16/MAR 13/MAR FERRETERIA HIPODROMO 133.53
-RFC: FHI 120704JN7 15:32 AUT: 605518 Referencia ******7339
+RFC: DEMO010101AAA 15:32 AUT: 605518 Referencia ******7339
 16/MAR 13/MAR SUSHI BONSAI 270.00
-RFC: MAAA870302JF1 15:57 AUT: 905111 Referencia ******7339
-16/MAR 14/MAR OFFICE DEPOT TIJUANA 491.37
-RFC: ODM 950324V2A 18:44 AUT: 417909 Referencia ******7339
+RFC: DEMO010101AAA 15:57 AUT: 905111 Referencia ******7339
+16/MAR 14/MAR OFFICE DEPOT DEMO 491.37
+RFC: DEMO010101AAA 18:44 AUT: 417909 Referencia ******7339
 16/MAR 16/MAR BLIZZARD ENTERTAINM 1,049.88 5,272.51 2,505.51
 RFC: 02:17 AUT: 352015 Referencia ******6863
 17/MAR 16/MAR BP*REFACCION 2,698.00
-RFC: PLA 120807BK0 15:21 AUT: 401194 Referencia ******7339
+RFC: DEMO010101AAA 15:21 AUT: 401194 Referencia ******7339
 17/MAR 16/MAR STEREN 69.00
-RFC: ESC 060315963 16:10 AUT: 887722 Referencia ******7339
+RFC: DEMO010101AAA 16:10 AUT: 887722 Referencia ******7339
 17/MAR 17/MAR BLIZZARD ENTERTAINM 1,049.88 3,555.39 3,555.39
 RFC: 00:00 AUT: Referencia ******6863
 22/MAR 20/MAR SUSHI BONSAI 990.00
-RFC: MAAA870302JF1 15:38 AUT: 453570 Referencia ******7339
+RFC: DEMO010101AAA 15:38 AUT: 453570 Referencia ******7339
 22/MAR 22/MAR SPEI RECIBIDOHSBC 3,000.00 5,565.39 5,565.39
-0000001A mi Bancomer Referencia 0179306988 021
+0000001A MI CUENTA DEMO Referencia 0179306988 021
 
 Total de Movimientos
 TOTAL IMPORTE CARGOS 54,644.28 TOTAL MOVIMIENTOS CARGOS 18
@@ -275,7 +275,7 @@ func TestParseRealTransactionsInfersThreeCreditsAcrossTrailingBalance(t *testing
 	text := `Estado de Cuenta
 Libretón Básico Cuenta Digital
 Periodo DEL 23/09/2024 AL 22/10/2024
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 291,774.54
@@ -328,7 +328,7 @@ func TestParseRealTransactionsInfersMixedSpanBeforeKnownMerchantBalance(t *testi
 	text := `Estado de Cuenta
 Libretón Básico Cuenta Digital
 Periodo DEL 23/02/2023 AL 22/03/2023
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 102,752.44
@@ -340,13 +340,13 @@ Detalle de Movimientos Realizados
 23/FEB       23/FEB        SPEI ENVIADO HSBC                                                               11,000.00                     91,752.44            83,753.44
                            2302230A mi HSBC                                               Referencia 0095720271 021
 24/FEB       24/FEB        PAGO CUENTA DE TERCERO                                                                         29,143.35
-                           BNET 0111090976 factura A9BB1                                  Referencia 0070246047
+                           BNET 0000000004 FACTURA DEMO3                                  Referencia 0070246047
 24/FEB       24/FEB        SPEI ENVIADO HSBC                                                               32,000.00
                            2402230A mi HSBC                                              Referencia 0099516853 021
-24/FEB       23/FEB        COSTCO TIJUANA II                                                                   7,999.00               80,896.79        80,896.79
+24/FEB       23/FEB        COMERCIO DEMO MAYORISTA                                                             7,999.00               80,896.79        80,896.79
                            RFC: CME 910715UB9 19:49 AUT: 218016                          Referencia ******7339
 10/MAR       10/MAR        PAGO CUENTA DE TERCERO                                                                         29,143.35   110,040.14       110,040.14
-                           BNET 0111090976 factura 7FDC8                                 Referencia 0082861026
+                           BNET 0000000004 FACTURA DEMO4                                 Referencia 0082861026
 17/MAR       17/MAR        RETIRO SIN TARJETA                                                                  3,000.00
                                                                                           Referencia ******7339
 17/MAR       17/MAR        SAT                                                                                 1,180.00               105,860.14       105,860.14
@@ -366,8 +366,8 @@ TOTAL IMPORTE ABONOS 58,286.70 TOTAL MOVIMIENTOS ABONOS 2`
 	if transactions[2].Description != "SPEI ENVIADO HSBC" || transactions[2].Direction != edocuenta.TransactionDirectionDebit {
 		t.Fatalf("transactions[2] = (%q,%q), want (SPEI ENVIADO HSBC,debit)", transactions[2].Description, transactions[2].Direction)
 	}
-	if transactions[3].Description != "COSTCO TIJUANA II" || transactions[3].Direction != edocuenta.TransactionDirectionDebit {
-		t.Fatalf("transactions[3] = (%q,%q), want (COSTCO TIJUANA II,debit)", transactions[3].Description, transactions[3].Direction)
+	if transactions[3].Description != "COMERCIO DEMO MAYORISTA" || transactions[3].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("transactions[3] = (%q,%q), want (COMERCIO DEMO MAYORISTA,debit)", transactions[3].Description, transactions[3].Direction)
 	}
 	if transactions[3].AmountCents != 799900 {
 		t.Fatalf("transactions[3].AmountCents = %d, want 799900", transactions[3].AmountCents)
@@ -383,7 +383,7 @@ func TestParseRealTransactionsResolvesLegacyBankingFeesAndCashPayments(t *testin
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 23/08/2020 AL 22/09/2020
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 1,000.00
@@ -424,7 +424,7 @@ func TestParseRealTransactionsResolvesMembershipChargesAndReversals(t *testing.T
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 23/01/2022 AL 22/02/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 65,013.18
@@ -469,7 +469,7 @@ func TestParseRealTransactionsBalanceOverridesDebitHintWhenBalanceIncreases(t *t
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 01/12/2022 AL 31/12/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 44,458.60
@@ -503,7 +503,7 @@ func TestParseRealTransactionsBalanceOverridesDebitHintForThirdPartyPayment(t *t
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 01/02/2022 AL 28/02/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 37,972.95
@@ -537,7 +537,7 @@ func TestParseRealTransactionsInfersCreditThenDebitPairFromNextBalance(t *testin
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 01/12/2022 AL 31/12/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 73,601.95
@@ -547,9 +547,9 @@ Saldo Final 89,745.30
 
 Detalle de Movimientos Realizados
 16/DIC       16/DIC        PAGO CUENTA DE TERCERO                                                                         29,143.35
-                           BNET 0111090976 factura AE77B                                 Referencia 0076933010
+                           BNET 0000000004 FACTURA DEMO5                                 Referencia 0076933010
 16/DIC       16/DIC        SPEI ENVIADO HSBC                                                               13,000.00                  89,745.30        89,745.30
-                           1612220A mi HSBC                                              Referencia 0094972896 021
+                           1612220A MI CUENTA DEMO                                        Referencia 0094972896 021
 
 Total de Movimientos
 TOTAL IMPORTE CARGOS 13,000.00 TOTAL MOVIMIENTOS CARGOS 1
@@ -579,7 +579,7 @@ func TestParseRealTransactionsInfersPairAfterEarlierHintOnlyRows(t *testing.T) {
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 23/01/2022 AL 22/02/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 65,013.18
@@ -596,9 +596,9 @@ Detalle de Movimientos Realizados
                            16%
 24/ENE       23/ENE        BONIFICACION IVA COMISION                                                                           8.80   65,013.18        65,013.18
 28/ENE       28/ENE        PAGO CUENTA DE TERCERO                                                                         23,418.77
-                           BNET 0111090976 Factura 50BEA                                 Referencia 0035741018
+                           BNET 0000000004 FACTURA DEMO6                                 Referencia 0035741018
 28/ENE       28/ENE        SPEI ENVIADO HSBC                                                               50,000.00                  38,431.95        38,431.95
-                           2801220A MI HSBC                                              Referencia 0077363373 021
+                           2801220A MI CUENTA DEMO                                        Referencia 0077363373 021
 
 Total de Movimientos
 TOTAL IMPORTE CARGOS 50,063.80 TOTAL MOVIMIENTOS CARGOS 4
@@ -628,7 +628,7 @@ func TestParseRealTransactionsInfersTwoCreditsWhenNextHintConflicts(t *testing.T
 	text := `Estado de Cuenta
 Libretón Básico
 Periodo DEL 01/02/2022 AL 28/02/2022
-No. de Cuenta 1528907610
+No. de Cuenta 0000000001
 
 Información Financiera MONEDA NACIONAL
 Saldo Anterior 38,197.95

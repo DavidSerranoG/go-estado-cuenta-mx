@@ -1,11 +1,11 @@
 # BBVA
 
 Estado: implementado para estados de cuenta y estados de cuenta de tarjeta de
-crédito BBVA, con validación local de PDFs reales
+crédito BBVA, con validación local sobre corpus privado no versionado
 
 Nota de extracción:
 
-- la validación local con PDFs reales se ejecuta contra los extractores ligeros por defecto
+- la validación local sobre corpus privado se ejecuta contra los extractores ligeros por defecto
 - cuando el primer parseo todavía falla porque el texto está incompleto, quien consume la librería puede habilitar Ghostscript + Tesseract OCR como extractor de rescate
 
 Datos esperados:
