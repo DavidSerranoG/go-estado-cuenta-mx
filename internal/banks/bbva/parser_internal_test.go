@@ -12,7 +12,6 @@ func TestClassifyByDescriptionResolvesKnownStatementPatterns(t *testing.T) {
 
 	cases := map[string]edocuenta.TransactionDirection{
 		"ABONO POR CORRECCION WWW ALIEXPRESS COM":   edocuenta.TransactionDirectionCredit,
-		"PAGO CUENTA DE TERCERO BNET 0105982138":    edocuenta.TransactionDirectionDebit,
 		"ADYENMX*UBER EATS RFC: UPM 200220LK5":      edocuenta.TransactionDirectionDebit,
 		"AMAZON MX MARKETPLACE RFC: ANE 140618P37":  edocuenta.TransactionDirectionDebit,
 		"AMAZON MX RFC: ANE 140618P37":              edocuenta.TransactionDirectionDebit,
@@ -258,6 +257,126 @@ TOTAL IMPORTE ABONOS 50,449.88 TOTAL MOVIMIENTOS ABONOS 4`
 	}
 	if secondBlizzard.AmountCents != 104988 {
 		t.Fatalf("second BLIZZARD amount = %d, want 104988", secondBlizzard.AmountCents)
+	}
+}
+
+func TestParseRealTransactionsInfersThreeCreditsAcrossTrailingBalance(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico Cuenta Digital
+Periodo DEL 23/09/2024 AL 22/10/2024
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 291,774.54
+Depósitos / Abonos (+) 4 20,850.00
+Retiros / Cargos (-) 2 45,951.93
+Saldo Final 266,672.61
+
+Detalle de Movimientos Realizados
+23/SEP       23/SEP        SPEI RECIBIDOHSBC                                                                              20,000.00      311,774.54              311,774.54
+                           0000001A mi BBVA                                               Referencia 0132887483 021
+27/SEP       27/SEP        PAGO TARJETA DE CREDITO                                                         25,000.00
+                           CUENTA: BMOV                                                   Referencia 6415654409
+27/SEP       27/SEP        PAGO TARJETA DE CREDITO                                                         20,951.93                  265,822.61       265,822.61
+                           CUENTA: BMOV                                                  Referencia 6415924890
+28/SEP       30/SEP        PAGO CUENTA DE TERCERO                                                                           233.00
+                           BNET 1566472338 desayuno                                      Referencia 6520342637
+28/SEP       30/SEP        PAGO CUENTA DE TERCERO                                                                           267.00
+                           BNET 1530642646 Transf a undefined                            Referencia 6520373014
+28/SEP       30/SEP        PAGO CUENTA DE TERCERO                                                                           350.00    266,672.61       265,822.61
+                           BNET 1553889228 Gracias bb                                    Referencia 6520381424
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 45,951.93 TOTAL MOVIMIENTOS CARGOS 2
+TOTAL IMPORTE ABONOS 20,850.00 TOTAL MOVIMIENTOS ABONOS 4`
+
+	periodStart := time.Date(2024, 9, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2024, 10, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 6 {
+		t.Fatalf("len(transactions) = %d, want 6", len(transactions))
+	}
+
+	for i := 3; i < 6; i++ {
+		if transactions[i].Description != "PAGO CUENTA DE TERCERO" {
+			t.Fatalf("transactions[%d].Description = %q, want PAGO CUENTA DE TERCERO", i, transactions[i].Description)
+		}
+		if transactions[i].Direction != edocuenta.TransactionDirectionCredit {
+			t.Fatalf("transactions[%d].Direction = %q, want credit", i, transactions[i].Direction)
+		}
+	}
+	if transactions[5].AmountCents != 35000 {
+		t.Fatalf("last third-party amount = %d, want 35000", transactions[5].AmountCents)
+	}
+	if transactions[5].BalanceCents == nil || *transactions[5].BalanceCents != 26667261 {
+		t.Fatalf("last third-party balance = %v, want 26667261", transactions[5].BalanceCents)
+	}
+}
+
+func TestParseRealTransactionsInfersMixedSpanBeforeKnownMerchantBalance(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico Cuenta Digital
+Periodo DEL 23/02/2023 AL 22/03/2023
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 102,752.44
+Depósitos / Abonos (+) 2 58,286.70
+Retiros / Cargos (-) 3 50,179.00
+Saldo Final 110,860.14
+
+Detalle de Movimientos Realizados
+23/FEB       23/FEB        SPEI ENVIADO HSBC                                                               11,000.00                     91,752.44            83,753.44
+                           2302230A mi HSBC                                               Referencia 0095720271 021
+24/FEB       24/FEB        PAGO CUENTA DE TERCERO                                                                         29,143.35
+                           BNET 0111090976 factura A9BB1                                  Referencia 0070246047
+24/FEB       24/FEB        SPEI ENVIADO HSBC                                                               32,000.00
+                           2402230A mi HSBC                                              Referencia 0099516853 021
+24/FEB       23/FEB        COSTCO TIJUANA II                                                                   7,999.00               80,896.79        80,896.79
+                           RFC: CME 910715UB9 19:49 AUT: 218016                          Referencia ******7339
+10/MAR       10/MAR        PAGO CUENTA DE TERCERO                                                                         29,143.35   110,040.14       110,040.14
+                           BNET 0111090976 factura 7FDC8                                 Referencia 0082861026
+17/MAR       17/MAR        RETIRO SIN TARJETA                                                                  3,000.00
+                                                                                          Referencia ******7339
+17/MAR       17/MAR        SAT                                                                                 1,180.00               105,860.14       105,860.14
+                           REF:04231JWO020038037228 CIE:0844985                          Referencia GUIA:1112705
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 50,179.00 TOTAL MOVIMIENTOS CARGOS 3
+TOTAL IMPORTE ABONOS 58,286.70 TOTAL MOVIMIENTOS ABONOS 2`
+
+	periodStart := time.Date(2023, 2, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2023, 3, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 7 {
+		t.Fatalf("len(transactions) = %d, want 7", len(transactions))
+	}
+	if transactions[1].Description != "PAGO CUENTA DE TERCERO" || transactions[1].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("transactions[1] = (%q,%q), want (PAGO CUENTA DE TERCERO,credit)", transactions[1].Description, transactions[1].Direction)
+	}
+	if transactions[2].Description != "SPEI ENVIADO HSBC" || transactions[2].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("transactions[2] = (%q,%q), want (SPEI ENVIADO HSBC,debit)", transactions[2].Description, transactions[2].Direction)
+	}
+	if transactions[3].Description != "COSTCO TIJUANA II" || transactions[3].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("transactions[3] = (%q,%q), want (COSTCO TIJUANA II,debit)", transactions[3].Description, transactions[3].Direction)
+	}
+	if transactions[3].AmountCents != 799900 {
+		t.Fatalf("transactions[3].AmountCents = %d, want 799900", transactions[3].AmountCents)
+	}
+	if transactions[4].Description != "PAGO CUENTA DE TERCERO" || transactions[4].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("transactions[4] = (%q,%q), want (PAGO CUENTA DE TERCERO,credit)", transactions[4].Description, transactions[4].Direction)
 	}
 }
 

@@ -726,17 +726,19 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 
 		item := &items[i]
 		if item.balanceCents == nil {
-			if inferredBalance, ok := inferMissingBalanceTransaction(items, i, running); ok {
-				if item.kind != inferredBalance.kind {
-					item.kind = inferredBalance.kind
-					changed = true
+			if inferredSpan, ok := inferBalanceSpan(items, i, running); ok {
+				for offset, balance := range inferredSpan.balances {
+					idx := i + offset
+					if items[idx].kind != inferredSpan.kinds[offset] {
+						items[idx].kind = inferredSpan.kinds[offset]
+						changed = true
+					}
+					if items[idx].balanceCents == nil || *items[idx].balanceCents != balance {
+						balanceCopy := balance
+						items[idx].balanceCents = &balanceCopy
+						changed = true
+					}
 				}
-				item.balanceCents = &inferredBalance.balance
-				if i+1 < len(items) && items[i+1].kind != inferredBalance.nextKind {
-					items[i+1].kind = inferredBalance.nextKind
-					changed = true
-				}
-				changed = true
 			}
 		}
 
@@ -790,57 +792,94 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 	return changed
 }
 
-type inferredBalanceTransaction struct {
-	kind     edocuenta.TransactionDirection
-	balance  int64
-	nextKind edocuenta.TransactionDirection
+type inferredBalanceSpan struct {
+	kinds    []edocuenta.TransactionDirection
+	balances []int64
 }
 
-func inferMissingBalanceTransaction(items []rawTransaction, idx int, running int64) (inferredBalanceTransaction, bool) {
-	if idx < 0 || idx >= len(items)-1 {
-		return inferredBalanceTransaction{}, false
+func inferBalanceSpan(items []rawTransaction, idx int, running int64) (inferredBalanceSpan, bool) {
+	if idx < 0 || idx >= len(items) {
+		return inferredBalanceSpan{}, false
 	}
 
-	current := items[idx]
-	next := items[idx+1]
-	if current.amountCents <= 0 || next.balanceCents == nil || next.amountCents <= 0 {
-		return inferredBalanceTransaction{}, false
+	const maxSpanLen = 6
+
+	end := -1
+	for j := idx; j < len(items) && j < idx+maxSpanLen; j++ {
+		if items[j].amountCents <= 0 {
+			return inferredBalanceSpan{}, false
+		}
+		if items[j].balanceCents != nil {
+			end = j
+			break
+		}
 	}
+	if end == -1 {
+		return inferredBalanceSpan{}, false
+	}
+
+	spanLen := end - idx + 1
+	target := *items[end].balanceCents
 
 	type candidate struct {
-		currentKind edocuenta.TransactionDirection
-		nextKind    edocuenta.TransactionDirection
+		kinds    []edocuenta.TransactionDirection
+		balances []int64
+		score    int
 	}
 
 	var matches []candidate
-	for _, currentKind := range []edocuenta.TransactionDirection{
-		edocuenta.TransactionDirectionDebit,
-		edocuenta.TransactionDirectionCredit,
-	} {
-		currentBalance := applyAmount(running, current.amountCents, currentKind)
-		for _, nextKind := range []edocuenta.TransactionDirection{
-			edocuenta.TransactionDirectionDebit,
-			edocuenta.TransactionDirectionCredit,
-		} {
-			if applyAmount(currentBalance, next.amountCents, nextKind) == *next.balanceCents {
-				matches = append(matches, candidate{
-					currentKind: currentKind,
-					nextKind:    nextKind,
-				})
+	for mask := 0; mask < (1 << spanLen); mask++ {
+		balance := running
+		kinds := make([]edocuenta.TransactionDirection, spanLen)
+		balances := make([]int64, spanLen)
+		score := 0
+
+		for offset := 0; offset < spanLen; offset++ {
+			kind := edocuenta.TransactionDirectionDebit
+			if mask&(1<<offset) != 0 {
+				kind = edocuenta.TransactionDirectionCredit
+			}
+			kinds[offset] = kind
+			balance = applyAmount(balance, items[idx+offset].amountCents, kind)
+			balances[offset] = balance
+			if hint := classifyByDescription(items[idx+offset].description); hint != "" && hint == kind {
+				score++
 			}
 		}
+
+		if balances[spanLen-1] != target {
+			continue
+		}
+
+		matches = append(matches, candidate{
+			kinds:    kinds,
+			balances: balances,
+			score:    score,
+		})
 	}
 
-	if len(matches) != 1 {
-		return inferredBalanceTransaction{}, false
+	if len(matches) == 0 {
+		return inferredBalanceSpan{}, false
 	}
 
-	match := matches[0]
+	best := matches[0]
+	bestCount := 1
+	for _, match := range matches[1:] {
+		switch {
+		case match.score > best.score:
+			best = match
+			bestCount = 1
+		case match.score == best.score:
+			bestCount++
+		}
+	}
+	if bestCount != 1 {
+		return inferredBalanceSpan{}, false
+	}
 
-	return inferredBalanceTransaction{
-		kind:     match.currentKind,
-		balance:  applyAmount(running, current.amountCents, match.currentKind),
-		nextKind: match.nextKind,
+	return inferredBalanceSpan{
+		kinds:    best.kinds,
+		balances: best.balances,
 	}, true
 }
 
@@ -961,7 +1000,6 @@ func classifyByDescription(description string) edocuenta.TransactionDirection {
 	switch {
 	case strings.Contains(upper, "SPEI ENVIADO"),
 		strings.Contains(upper, "PAGO TARJETA DE CREDITO"),
-		strings.Contains(upper, "PAGO CUENTA DE TERCERO"),
 		strings.Contains(upper, "SERV BANCA INTERNET"),
 		strings.Contains(upper, "IVA COM SERV BCA INTERNET"),
 		strings.Contains(upper, "COMISION POR MEMBRESIA"),
