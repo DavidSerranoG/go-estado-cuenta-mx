@@ -367,3 +367,83 @@ TOTAL IMPORTE ABONOS 63.80 TOTAL MOVIMIENTOS ABONOS 2`
 		}
 	}
 }
+
+func TestParseRealTransactionsBalanceOverridesDebitHintWhenBalanceIncreases(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 01/12/2022 AL 31/12/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 44,458.60
+Depósitos / Abonos (+) 1 45,286.70
+Retiros / Cargos (-) 0 0.00
+Saldo Final 89,745.30
+
+Detalle de Movimientos Realizados
+16/DIC       16/DIC        SPEI ENVIADO HSBC                                                                    45,286.70              89,745.30           89,745.30
+                           Referencia 0001
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 0.00 TOTAL MOVIMIENTOS CARGOS 0
+TOTAL IMPORTE ABONOS 45,286.70 TOTAL MOVIMIENTOS ABONOS 1`
+
+	periodStart := time.Date(2022, 12, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 1 {
+		t.Fatalf("len(transactions) = %d, want 1", len(transactions))
+	}
+	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("direction = %q, want credit", transactions[0].Direction)
+	}
+	if transactions[0].AmountCents != 4528670 {
+		t.Fatalf("amount = %d, want 4528670", transactions[0].AmountCents)
+	}
+}
+
+func TestParseRealTransactionsBalanceOverridesDebitHintForThirdPartyPayment(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 01/02/2022 AL 28/02/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 37,972.95
+Depósitos / Abonos (+) 1 675.00
+Retiros / Cargos (-) 0 0.00
+Saldo Final 38,647.95
+
+Detalle de Movimientos Realizados
+07/FEB       07/FEB        PAGO CUENTA DE TERCERO                                                                  675.00               38,647.95           38,647.95
+                           Referencia 0001
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 0.00 TOTAL MOVIMIENTOS CARGOS 0
+TOTAL IMPORTE ABONOS 675.00 TOTAL MOVIMIENTOS ABONOS 1`
+
+	periodStart := time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 2, 28, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 1 {
+		t.Fatalf("len(transactions) = %d, want 1", len(transactions))
+	}
+	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("direction = %q, want credit", transactions[0].Direction)
+	}
+	if transactions[0].AmountCents != 67500 {
+		t.Fatalf("amount = %d, want 67500", transactions[0].AmountCents)
+	}
+}

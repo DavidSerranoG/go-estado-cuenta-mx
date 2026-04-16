@@ -737,7 +737,7 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 			delta := *item.balanceCents - running
 			switch {
 			case delta < 0:
-				if item.kind == "" {
+				if item.kind != edocuenta.TransactionDirectionDebit {
 					item.kind = edocuenta.TransactionDirectionDebit
 					changed = true
 				}
@@ -746,7 +746,7 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 					changed = true
 				}
 			case delta > 0:
-				if item.kind == "" {
+				if item.kind != edocuenta.TransactionDirectionCredit {
 					item.kind = edocuenta.TransactionDirectionCredit
 					changed = true
 				}
