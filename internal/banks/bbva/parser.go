@@ -725,10 +725,17 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 		}
 
 		item := &items[i]
-		if item.kind == "" && item.balanceCents == nil {
+		if item.balanceCents == nil {
 			if inferredBalance, ok := inferMissingBalanceTransaction(items, i, running); ok {
-				item.kind = inferredBalance.kind
+				if item.kind != inferredBalance.kind {
+					item.kind = inferredBalance.kind
+					changed = true
+				}
 				item.balanceCents = &inferredBalance.balance
+				if i+1 < len(items) && items[i+1].kind != inferredBalance.nextKind {
+					items[i+1].kind = inferredBalance.nextKind
+					changed = true
+				}
 				changed = true
 			}
 		}
@@ -784,8 +791,9 @@ func resolveWithRunningBalance(items []rawTransaction, openingBalance *int64) bo
 }
 
 type inferredBalanceTransaction struct {
-	kind    edocuenta.TransactionDirection
-	balance int64
+	kind     edocuenta.TransactionDirection
+	balance  int64
+	nextKind edocuenta.TransactionDirection
 }
 
 func inferMissingBalanceTransaction(items []rawTransaction, idx int, running int64) (inferredBalanceTransaction, bool) {
@@ -833,8 +841,9 @@ func inferMissingBalanceTransaction(items []rawTransaction, idx int, running int
 	}
 
 	return inferredBalanceTransaction{
-		kind:    match.currentKind,
-		balance: applyAmount(running, current.amountCents, match.currentKind),
+		kind:     match.currentKind,
+		balance:  applyAmount(running, current.amountCents, match.currentKind),
+		nextKind: match.nextKind,
 	}, true
 }
 

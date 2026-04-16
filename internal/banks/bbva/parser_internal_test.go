@@ -447,3 +447,106 @@ TOTAL IMPORTE ABONOS 675.00 TOTAL MOVIMIENTOS ABONOS 1`
 		t.Fatalf("amount = %d, want 67500", transactions[0].AmountCents)
 	}
 }
+
+func TestParseRealTransactionsInfersCreditThenDebitPairFromNextBalance(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 01/12/2022 AL 31/12/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 73,601.95
+Depósitos / Abonos (+) 1 29,143.35
+Retiros / Cargos (-) 1 13,000.00
+Saldo Final 89,745.30
+
+Detalle de Movimientos Realizados
+16/DIC       16/DIC        PAGO CUENTA DE TERCERO                                                                         29,143.35
+                           BNET 0111090976 factura AE77B                                 Referencia 0076933010
+16/DIC       16/DIC        SPEI ENVIADO HSBC                                                               13,000.00                  89,745.30        89,745.30
+                           1612220A mi HSBC                                              Referencia 0094972896 021
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 13,000.00 TOTAL MOVIMIENTOS CARGOS 1
+TOTAL IMPORTE ABONOS 29,143.35 TOTAL MOVIMIENTOS ABONOS 1`
+
+	periodStart := time.Date(2022, 12, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 2 {
+		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
+	}
+	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("first direction = %q, want credit", transactions[0].Direction)
+	}
+	if transactions[0].AmountCents != 2914335 {
+		t.Fatalf("first amount = %d, want 2914335", transactions[0].AmountCents)
+	}
+	if transactions[1].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("second direction = %q, want debit", transactions[1].Direction)
+	}
+	if transactions[1].AmountCents != 1300000 {
+		t.Fatalf("second amount = %d, want 1300000", transactions[1].AmountCents)
+	}
+}
+
+func TestParseRealTransactionsInfersPairAfterEarlierHintOnlyRows(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 23/01/2022 AL 22/02/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 65,013.18
+Depósitos / Abonos (+) 4 49,728.42
+Retiros / Cargos (-) 4 73,137.51
+Saldo Final 41,604.09
+
+Detalle de Movimientos Realizados
+24/ENE       23/ENE        COMISION POR MEMBRESIA                                                                55.00
+                           POR MANTENER SALDO INFERIOR AL MINIMO                          Referencia 23DIC21/22ENE22
+24/ENE       23/ENE        BONIFICACION DE COMISION                                                                        55.00
+                           COMISION POR MEMBRESIA                                         Referencia 23DIC21/22ENE22
+24/ENE       23/ENE        IVA COM MEMBRESIA                                                                      8.80
+                           16%
+24/ENE       23/ENE        BONIFICACION IVA COMISION                                                                           8.80   65,013.18        65,013.18
+28/ENE       28/ENE        PAGO CUENTA DE TERCERO                                                                         23,418.77
+                           BNET 0111090976 Factura 50BEA                                 Referencia 0035741018
+28/ENE       28/ENE        SPEI ENVIADO HSBC                                                               50,000.00                  38,431.95        38,431.95
+                           2801220A MI HSBC                                              Referencia 0077363373 021
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 50,063.80 TOTAL MOVIMIENTOS CARGOS 4
+TOTAL IMPORTE ABONOS 23,482.57 TOTAL MOVIMIENTOS ABONOS 4`
+
+	periodStart := time.Date(2022, 1, 23, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 2, 22, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 6 {
+		t.Fatalf("len(transactions) = %d, want 6", len(transactions))
+	}
+	if transactions[4].Direction != edocuenta.TransactionDirectionCredit {
+		t.Fatalf("fifth direction = %q, want credit", transactions[4].Direction)
+	}
+	if transactions[4].AmountCents != 2341877 {
+		t.Fatalf("fifth amount = %d, want 2341877", transactions[4].AmountCents)
+	}
+	if transactions[5].Direction != edocuenta.TransactionDirectionDebit {
+		t.Fatalf("sixth direction = %q, want debit", transactions[5].Direction)
+	}
+	if transactions[5].AmountCents != 5000000 {
+		t.Fatalf("sixth amount = %d, want 5000000", transactions[5].AmountCents)
+	}
+}
