@@ -550,3 +550,47 @@ TOTAL IMPORTE ABONOS 23,482.57 TOTAL MOVIMIENTOS ABONOS 4`
 		t.Fatalf("sixth amount = %d, want 5000000", transactions[5].AmountCents)
 	}
 }
+
+func TestParseRealTransactionsInfersTwoCreditsWhenNextHintConflicts(t *testing.T) {
+	t.Parallel()
+
+	text := `Estado de Cuenta
+Libretón Básico
+Periodo DEL 01/02/2022 AL 28/02/2022
+No. de Cuenta 1528907610
+
+Información Financiera MONEDA NACIONAL
+Saldo Anterior 38,197.95
+Depósitos / Abonos (+) 2 450.00
+Retiros / Cargos (-) 0 0.00
+Saldo Final 38,647.95
+
+Detalle de Movimientos Realizados
+07/FEB       08/FEB        PAGO CUENTA DE TERCERO                                                                           225.00
+                           BNET 1580631760 AGUA                                          Referencia 3231495370
+07/FEB       08/FEB        PAGO CUENTA DE TERCERO                                                                           225.00    38,647.95        38,197.95
+                           BNET 1558072949 AGUA                                          Referencia 3231534118
+
+Total de Movimientos
+TOTAL IMPORTE CARGOS 0.00 TOTAL MOVIMIENTOS CARGOS 0
+TOTAL IMPORTE ABONOS 450.00 TOTAL MOVIMIENTOS ABONOS 2`
+
+	periodStart := time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
+	periodEnd := time.Date(2022, 2, 28, 0, 0, 0, 0, time.UTC)
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != 2 {
+		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
+	}
+	for i, tx := range transactions {
+		if tx.Direction != edocuenta.TransactionDirectionCredit {
+			t.Fatalf("transactions[%d].Direction = %q, want credit", i, tx.Direction)
+		}
+		if tx.AmountCents != 22500 {
+			t.Fatalf("transactions[%d].AmountCents = %d, want 22500", i, tx.AmountCents)
+		}
+	}
+}

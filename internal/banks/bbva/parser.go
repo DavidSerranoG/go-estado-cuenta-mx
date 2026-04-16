@@ -836,9 +836,6 @@ func inferMissingBalanceTransaction(items []rawTransaction, idx int, running int
 	}
 
 	match := matches[0]
-	if next.kind != "" && next.kind != match.nextKind {
-		return inferredBalanceTransaction{}, false
-	}
 
 	return inferredBalanceTransaction{
 		kind:     match.currentKind,
