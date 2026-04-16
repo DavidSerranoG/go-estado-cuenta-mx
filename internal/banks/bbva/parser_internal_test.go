@@ -7,6 +7,33 @@ import (
 	edocuenta "github.com/DavidSerranoG/go-estado-cuenta-mx"
 )
 
+func mustParseRealTransactions(t *testing.T, text string, periodStart, periodEnd time.Time, wantCount int) []edocuenta.Transaction {
+	t.Helper()
+
+	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
+	if len(warnings) != 0 {
+		t.Fatalf("warnings = %v, want none", warnings)
+	}
+	if len(transactions) != wantCount {
+		t.Fatalf("len(transactions) = %d, want %d", len(transactions), wantCount)
+	}
+
+	return transactions
+}
+
+func sumDirections(transactions []edocuenta.Transaction) (debitSum, creditSum int64) {
+	for _, tx := range transactions {
+		switch tx.Direction {
+		case edocuenta.TransactionDirectionDebit:
+			debitSum += tx.AmountCents
+		case edocuenta.TransactionDirectionCredit:
+			creditSum += tx.AmountCents
+		}
+	}
+
+	return debitSum, creditSum
+}
+
 func TestClassifyByDescriptionResolvesKnownStatementPatterns(t *testing.T) {
 	t.Parallel()
 
@@ -72,13 +99,7 @@ TOTAL IMPORTE ABONOS 20,496.35 TOTAL MOVIMIENTOS ABONOS 5`
 	periodStart := time.Date(2019, 3, 9, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2019, 3, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 7 {
-		t.Fatalf("len(transactions) = %d, want 7", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 7)
 	if transactions[0].PostedAt != time.Date(2019, 3, 9, 0, 0, 0, 0, time.UTC) {
 		t.Fatalf("first date = %v, want 2019-03-09", transactions[0].PostedAt)
 	}
@@ -123,13 +144,7 @@ TOTAL IMPORTE ABONOS 4,787.83 TOTAL MOVIMIENTOS ABONOS 2`
 	periodStart := time.Date(2025, 7, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2025, 7, 31, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 5 {
-		t.Fatalf("len(transactions) = %d, want 5", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 5)
 	if transactions[1].Description != "TRASPASO ENTRE CUENTAS" {
 		t.Fatalf("second description = %q, want TRASPASO ENTRE CUENTAS", transactions[1].Description)
 	}
@@ -214,13 +229,7 @@ TOTAL IMPORTE ABONOS 50,449.88 TOTAL MOVIMIENTOS ABONOS 4`
 	periodStart := time.Date(2021, 2, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2021, 3, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 22 {
-		t.Fatalf("len(transactions) = %d, want 22", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 22)
 
 	var debitSum, creditSum int64
 	var firstBlizzard, secondBlizzard *edocuenta.Transaction
@@ -295,13 +304,7 @@ TOTAL IMPORTE ABONOS 20,850.00 TOTAL MOVIMIENTOS ABONOS 4`
 	periodStart := time.Date(2024, 9, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2024, 10, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 6 {
-		t.Fatalf("len(transactions) = %d, want 6", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 6)
 
 	for i := 3; i < 6; i++ {
 		if transactions[i].Description != "PAGO CUENTA DE TERCERO" {
@@ -356,13 +359,7 @@ TOTAL IMPORTE ABONOS 58,286.70 TOTAL MOVIMIENTOS ABONOS 2`
 	periodStart := time.Date(2023, 2, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2023, 3, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 7 {
-		t.Fatalf("len(transactions) = %d, want 7", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 7)
 	if transactions[1].Description != "PAGO CUENTA DE TERCERO" || transactions[1].Direction != edocuenta.TransactionDirectionCredit {
 		t.Fatalf("transactions[1] = (%q,%q), want (PAGO CUENTA DE TERCERO,credit)", transactions[1].Description, transactions[1].Direction)
 	}
@@ -411,23 +408,8 @@ TOTAL IMPORTE ABONOS 4,960.00 TOTAL MOVIMIENTOS ABONOS 2`
 	periodStart := time.Date(2020, 8, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2020, 9, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 4 {
-		t.Fatalf("len(transactions) = %d, want 4", len(transactions))
-	}
-
-	var debitSum, creditSum int64
-	for _, tx := range transactions {
-		switch tx.Direction {
-		case edocuenta.TransactionDirectionDebit:
-			debitSum += tx.AmountCents
-		case edocuenta.TransactionDirectionCredit:
-			creditSum += tx.AmountCents
-		}
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 4)
+	debitSum, creditSum := sumDirections(transactions)
 	if debitSum != 580 {
 		t.Fatalf("debitSum = %d, want 580", debitSum)
 	}
@@ -466,13 +448,7 @@ TOTAL IMPORTE ABONOS 63.80 TOTAL MOVIMIENTOS ABONOS 2`
 	periodStart := time.Date(2022, 1, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 2, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 4 {
-		t.Fatalf("len(transactions) = %d, want 4", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 4)
 
 	wantKinds := []edocuenta.TransactionDirection{
 		edocuenta.TransactionDirectionDebit,
@@ -512,13 +488,7 @@ TOTAL IMPORTE ABONOS 45,286.70 TOTAL MOVIMIENTOS ABONOS 1`
 	periodStart := time.Date(2022, 12, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 1 {
-		t.Fatalf("len(transactions) = %d, want 1", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 1)
 	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
 		t.Fatalf("direction = %q, want credit", transactions[0].Direction)
 	}
@@ -552,13 +522,7 @@ TOTAL IMPORTE ABONOS 675.00 TOTAL MOVIMIENTOS ABONOS 1`
 	periodStart := time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 2, 28, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 1 {
-		t.Fatalf("len(transactions) = %d, want 1", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 1)
 	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
 		t.Fatalf("direction = %q, want credit", transactions[0].Direction)
 	}
@@ -594,13 +558,7 @@ TOTAL IMPORTE ABONOS 29,143.35 TOTAL MOVIMIENTOS ABONOS 1`
 	periodStart := time.Date(2022, 12, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 2 {
-		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 2)
 	if transactions[0].Direction != edocuenta.TransactionDirectionCredit {
 		t.Fatalf("first direction = %q, want credit", transactions[0].Direction)
 	}
@@ -649,13 +607,7 @@ TOTAL IMPORTE ABONOS 23,482.57 TOTAL MOVIMIENTOS ABONOS 4`
 	periodStart := time.Date(2022, 1, 23, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 2, 22, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 6 {
-		t.Fatalf("len(transactions) = %d, want 6", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 6)
 	if transactions[4].Direction != edocuenta.TransactionDirectionCredit {
 		t.Fatalf("fifth direction = %q, want credit", transactions[4].Direction)
 	}
@@ -697,13 +649,7 @@ TOTAL IMPORTE ABONOS 450.00 TOTAL MOVIMIENTOS ABONOS 2`
 	periodStart := time.Date(2022, 2, 1, 0, 0, 0, 0, time.UTC)
 	periodEnd := time.Date(2022, 2, 28, 0, 0, 0, 0, time.UTC)
 
-	transactions, warnings := parseRealTransactions(text, periodStart, periodEnd)
-	if len(warnings) != 0 {
-		t.Fatalf("warnings = %v, want none", warnings)
-	}
-	if len(transactions) != 2 {
-		t.Fatalf("len(transactions) = %d, want 2", len(transactions))
-	}
+	transactions := mustParseRealTransactions(t, text, periodStart, periodEnd, 2)
 	for i, tx := range transactions {
 		if tx.Direction != edocuenta.TransactionDirectionCredit {
 			t.Fatalf("transactions[%d].Direction = %q, want credit", i, tx.Direction)
