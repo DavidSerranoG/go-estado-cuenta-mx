@@ -21,6 +21,18 @@ const (
 var errIgnoredTransactionChunk = errors.New("bbva: ignored non-transaction chunk")
 
 var (
+	bbvaMovementSectionMarkers = []string{
+		"DETALLE DE MOVIMIENTOS REALIZADOS",
+		"DETALLE DE MOVIMIENTOS",
+		"DETALLE MOVIMIENTOS",
+	}
+	bbvaHeaderSectionCutoffMarkers = []string{
+		"DETALLE DE MOVIMIENTOS REALIZADOS",
+		"DETALLE DE MOVIMIENTOS",
+		"DETALLE MOVIMIENTOS",
+		"TOTAL DE MOVIMIENTOS",
+		"TOTAL MOVIMIENTOS",
+	}
 	accountPatterns = []*regexp.Regexp{
 		regexp.MustCompile(`(?i)cuenta:\s*([0-9][0-9 ]{7,20})`),
 		regexp.MustCompile(`(?i)cuenta\s+([0-9][0-9 ]{7,20})`),
@@ -193,11 +205,7 @@ func parseStatementCurrency(text string) edocuenta.Currency {
 func bbvaStatementHeaderSection(text string) string {
 	upper := strings.ToUpper(text)
 	headerCutoff := len(text)
-	for _, marker := range []string{
-		"DETALLE DE MOVIMIENTOS REALIZADOS",
-		"DETALLE DE MOVIMIENTOS",
-		"TOTAL DE MOVIMIENTOS",
-	} {
+	for _, marker := range bbvaHeaderSectionCutoffMarkers {
 		index := strings.Index(upper, marker)
 		if index >= 0 && index < headerCutoff {
 			headerCutoff = index
@@ -243,7 +251,7 @@ func bbvaDetectionScore(text string) int {
 	if matchesAnyRegexp(text, accountPatterns...) {
 		score++
 	}
-	if strings.Contains(upper, "DETALLE DE MOVIMIENTOS") {
+	if containsAnySubstring(upper, bbvaMovementSectionMarkers) {
 		score += 2
 	}
 	if openingBalancePattern.MatchString(text) {
@@ -264,6 +272,15 @@ func bbvaDetectionScore(text string) int {
 	}
 
 	return score
+}
+
+func containsAnySubstring(text string, markers []string) bool {
+	for _, marker := range markers {
+		if strings.Contains(text, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 func matchesAnyRegexp(text string, patterns ...*regexp.Regexp) bool {

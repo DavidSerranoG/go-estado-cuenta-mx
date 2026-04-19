@@ -48,6 +48,20 @@ CED CUENTA EN DOLARES`
 	}
 }
 
+func TestBBVAStatementHeaderSectionStopsBeforeOCRMovementBody(t *testing.T) {
+	t.Parallel()
+
+	text := `BBVA
+Información Financiera MONEDA NACIONAL
+DETALLE MOVIMIENTOS
+CED CUENTA EN DOLARES`
+
+	headerSection := bbvaStatementHeaderSection(text)
+	if headerSection != "BBVA\nInformación Financiera MONEDA NACIONAL\n" {
+		t.Fatalf("header section = %q", headerSection)
+	}
+}
+
 func TestMatchBBVAStatementCurrencyUsesHeaderMarkers(t *testing.T) {
 	t.Parallel()
 
@@ -74,6 +88,21 @@ MN MONEDA NACIONAL`
 
 	if got := parseStatementCurrency(text); got != edocuenta.CurrencyMXN {
 		t.Fatalf("statement currency = %q, want %q", got, edocuenta.CurrencyMXN)
+	}
+}
+
+func TestBBVADetectionScoreAcceptsOCRMovementHeading(t *testing.T) {
+	t.Parallel()
+
+	text := `BBVA
+Periodo DEL 23/12/2025 AL 22/01/2026
+No. de Cuenta 0000000001
+Información Financiera MONEDA NACIONAL
+DETALLE MOVIMIENTOS
+26/DIC 26/DIC PAGO CUENTA DE TERCERO 1,250.00 66,061.83 66,061.83`
+
+	if score := bbvaDetectionScore(text); score <= 0 {
+		t.Fatalf("expected positive BBVA score for OCR movement heading, got %d", score)
 	}
 }
 
