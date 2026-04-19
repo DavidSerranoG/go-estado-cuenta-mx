@@ -41,8 +41,10 @@ Comportamiento actual del parser:
 - para tarjetas de crédito prefiere el identificador visible enmascarado de la cuenta, luego el identificador enmascarado del titular y por último el número completo de tarjeta cuando no existe identificador enmascarado
 - acepta rangos de periodo con o sin `:` y con `DEL ... AL ...` o `... - ...`
 - para tarjetas de crédito acepta rangos como `25-feb-2026 al 24-mar-2026`
-- mapea `MONEDA NACIONAL` y marcadores similares de pesos a `MXN`
-- mapea `MONEDA DÓLARES`, `MONEDA DOLARES` y marcadores similares de cuentas en dólares a `USD`
+- mapea la moneda del estado a partir del encabezado de la cuenta
+- mapea `MONEDA NACIONAL` y marcadores similares del encabezado a `MXN`
+- mapea `MONEDA DÓLARES`, `MONEDA DOLARES` y marcadores similares del encabezado a `USD`
+- ignora coincidencias de glosarios o catálogos impresos fuera del encabezado para no contaminar la moneda del estado
 - infiere `debit` o `credit` primero a partir del saldo corrido, después con pistas en la descripción y al final con los totales del estado
 - clasifica los layouts de depósito BBVA como `AccountClass=asset` y las tarjetas de crédito BBVA como `AccountClass=liability`
 - para estados de cuenta expone saldos inicial y final, además de total de cargos y abonos cuando esas etiquetas están presentes

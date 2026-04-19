@@ -124,6 +124,9 @@ func TestParseRealStyleStatementInfersMissingBalanceFromSummary(t *testing.T) {
 		t.Fatalf("parse statement with inferred balance: %v", err)
 	}
 
+	if statement.Currency != "MXN" {
+		t.Fatalf("unexpected currency %q", statement.Currency)
+	}
 	if len(statement.Transactions) != 7 {
 		t.Fatalf("expected 7 transactions, got %d", len(statement.Transactions))
 	}
@@ -135,6 +138,27 @@ func TestParseRealStyleStatementInfersMissingBalanceFromSummary(t *testing.T) {
 	}
 	if statement.Transactions[4].Direction != "debit" {
 		t.Fatalf("expected following transfer to be debit, got %q", statement.Transactions[4].Direction)
+	}
+}
+
+func TestParseRealStyleStatementIgnoresDollarGlossaryOutsideHeader(t *testing.T) {
+	t.Parallel()
+
+	parser := bbva.New()
+
+	statement, err := parser.Parse(realStyleNationalCurrencyWithDollarGlossaryText)
+	if err != nil {
+		t.Fatalf("parse statement with dollar glossary: %v", err)
+	}
+
+	if statement.Currency != "MXN" {
+		t.Fatalf("unexpected currency %q", statement.Currency)
+	}
+	if statement.AccountNumber != "0000000001" {
+		t.Fatalf("unexpected account %q", statement.AccountNumber)
+	}
+	if len(statement.Transactions) != 2 {
+		t.Fatalf("expected 2 transactions, got %d", len(statement.Transactions))
 	}
 }
 
@@ -373,6 +397,29 @@ PeriodoDEL 23/01/2026 AL 22/02/2026Fecha de Corte 22/02/2026No. de Cuenta0000000
 Información FinancieraMONEDA NACIONALLibretón Básico Cuenta Digital
 ComportamientoSaldo Anterior19,192.96Depósitos / Abonos (+)379,090.20Retiros / Cargos (-)391,791.56Saldo Final6,491.60
 Detalle de Movimientos RealizadosFECHASALDOOPERLIQDESCRIPCIONREFERENCIACARGOSABONOSOPERACIONLIQUIDACION27/ENE27/ENEPAGO TARJETA DE CREDITO14,088.565,104.405,104.40 CUENTA: BMOV Referencia 853209811029/ENE29/ENESPEI RECIBIDOSCOTIABANK52,200.0057,304.4057,304.40 Referencia 015781111804/FEB05/FEBSPEI ENVIADO HSBC25,000.0032,304.4057,304.40 Referencia 007951182112/FEB12/FEBTRASPASO ENTRE CUENTAS326,890.20 FOLIO: 0000000 20000.00USD Referencia 8304315.1002.0112/FEB12/FEBSPEI ENVIADO HSBC330,000.0029,194.6029,194.60 Referencia 006658335216/FEB16/FEBSPEI ENVIADO HSBC14,000.0015,194.6015,194.60 Referencia 008948902218/FEB18/FEBSAT8,703.006,491.606,491.60 REF:04261TEST950048844224TOTAL IMPORTE CARGOS391,791.56TOTAL MOVIMIENTOS CARGOS5TOTAL IMPORTE ABONOS379,090.20TOTAL MOVIMIENTOS ABONOS2`
+
+const realStyleNationalCurrencyWithDollarGlossaryText = `BBVA
+Periodo DEL 23/12/2025 AL 22/01/2026
+Fecha de Corte 22/01/2026
+No. de Cuenta 0000000001
+No. Cuenta CLABE 012 028 00000000001 8
+Información Financiera MONEDA NACIONAL
+Libretón Básico Cuenta Digital
+Comportamiento
+Saldo Anterior 63,311.83
+Depósitos / Abonos (+) 4,000.00
+Retiros / Cargos (-) 1,250.00
+Saldo Final 66,061.83
+Detalle de Movimientos Realizados
+26/DIC 26/DIC SPEI RECIBIDO DEMO 4,000.00 67,311.83 67,311.83
+Referencia 5000000001
+27/DIC 27/DIC PAGO CUENTA DE TERCERO 1,250.00 66,061.83 66,061.83
+Referencia 5000000002
+TOTAL IMPORTE CARGOS 1,250.00 TOTAL MOVIMIENTOS CARGOS 1
+TOTAL IMPORTE ABONOS 4,000.00 TOTAL MOVIMIENTOS ABONOS 1
+CTA         CUENTA                                 MDO                  MERCADO                                 V            VENTANILLA
+CED         CUENTA EN DOLARES                      MIN                  MINIMO                                  TC           TIPO DE CAMBIO
+CECOBAN     CAMARA ELECTRONICA DE                  MN                   MONEDA NACIONAL                         MOV          MOVIMIENTO`
 
 const realStyleUSDText = `BBVA
 PeriodoDEL 01/01/2026 AL 31/01/2026Fecha de Corte 31/01/2026No. de Cuenta0000000002No. de ClienteC0000000No. Cuenta CLABE012028000000000028

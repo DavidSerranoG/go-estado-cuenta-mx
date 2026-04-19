@@ -34,21 +34,64 @@ func sumDirections(transactions []edocuenta.Transaction) (debitSum, creditSum in
 	return debitSum, creditSum
 }
 
+func TestBBVAStatementHeaderSectionStopsBeforeMovementBody(t *testing.T) {
+	t.Parallel()
+
+	text := `BBVA
+Información Financiera MONEDA NACIONAL
+Detalle de Movimientos Realizados
+CED CUENTA EN DOLARES`
+
+	headerSection := bbvaStatementHeaderSection(text)
+	if headerSection != "BBVA\nInformación Financiera MONEDA NACIONAL\n" {
+		t.Fatalf("header section = %q", headerSection)
+	}
+}
+
+func TestMatchBBVAStatementCurrencyUsesHeaderMarkers(t *testing.T) {
+	t.Parallel()
+
+	if got := matchBBVAStatementCurrency("Información Financiera MONEDA NACIONAL"); got != edocuenta.CurrencyMXN {
+		t.Fatalf("national currency = %q, want %q", got, edocuenta.CurrencyMXN)
+	}
+	if got := matchBBVAStatementCurrency("Información Financiera MONEDA DOLARES"); got != edocuenta.CurrencyUSD {
+		t.Fatalf("dollar currency = %q, want %q", got, edocuenta.CurrencyUSD)
+	}
+	if got := matchBBVAStatementCurrency("Libretón Dólares"); got != edocuenta.CurrencyUSD {
+		t.Fatalf("dollar account label = %q, want %q", got, edocuenta.CurrencyUSD)
+	}
+}
+
+func TestParseStatementCurrencyIgnoresDollarGlossaryOutsideHeader(t *testing.T) {
+	t.Parallel()
+
+	text := `BBVA
+Información Financiera MONEDA NACIONAL
+Detalle de Movimientos Realizados
+TOTALES
+CED CUENTA EN DOLARES
+MN MONEDA NACIONAL`
+
+	if got := parseStatementCurrency(text); got != edocuenta.CurrencyMXN {
+		t.Fatalf("statement currency = %q, want %q", got, edocuenta.CurrencyMXN)
+	}
+}
+
 func TestClassifyByDescriptionResolvesKnownStatementPatterns(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]edocuenta.TransactionDirection{
-		"ABONO POR CORRECCION WWW ALIEXPRESS COM":   edocuenta.TransactionDirectionCredit,
-		"ADYENMX*UBER EATS RFC: DEMO010101AAA":      edocuenta.TransactionDirectionDebit,
-		"AMAZON MX MARKETPLACE RFC: DEMO010101AAA":  edocuenta.TransactionDirectionDebit,
-		"AMAZON MX RFC: DEMO010101AAA":              edocuenta.TransactionDirectionDebit,
-		"SERV BANCA INTERNET":                       edocuenta.TransactionDirectionDebit,
-		"IVA COM SERV BCA INTERNET":                 edocuenta.TransactionDirectionDebit,
-		"SU PAGO EN EFECTIVO":                       edocuenta.TransactionDirectionCredit,
-		"COMISION POR MEMBRESIA":                    edocuenta.TransactionDirectionDebit,
-		"BONIFICACION DE COMISION":                  edocuenta.TransactionDirectionCredit,
-		"IVA COM MEMBRESIA":                         edocuenta.TransactionDirectionDebit,
-		"BONIFICACION IVA COMISION":                 edocuenta.TransactionDirectionCredit,
+		"ABONO POR CORRECCION WWW ALIEXPRESS COM":  edocuenta.TransactionDirectionCredit,
+		"ADYENMX*UBER EATS RFC: DEMO010101AAA":     edocuenta.TransactionDirectionDebit,
+		"AMAZON MX MARKETPLACE RFC: DEMO010101AAA": edocuenta.TransactionDirectionDebit,
+		"AMAZON MX RFC: DEMO010101AAA":             edocuenta.TransactionDirectionDebit,
+		"SERV BANCA INTERNET":                      edocuenta.TransactionDirectionDebit,
+		"IVA COM SERV BCA INTERNET":                edocuenta.TransactionDirectionDebit,
+		"SU PAGO EN EFECTIVO":                      edocuenta.TransactionDirectionCredit,
+		"COMISION POR MEMBRESIA":                   edocuenta.TransactionDirectionDebit,
+		"BONIFICACION DE COMISION":                 edocuenta.TransactionDirectionCredit,
+		"IVA COM MEMBRESIA":                        edocuenta.TransactionDirectionDebit,
+		"BONIFICACION IVA COMISION":                edocuenta.TransactionDirectionCredit,
 	}
 
 	for description, want := range cases {

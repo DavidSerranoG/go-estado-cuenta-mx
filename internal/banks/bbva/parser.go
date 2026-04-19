@@ -122,7 +122,7 @@ func (Parser) ParseResult(text string) (edocuenta.ParseResult, error) {
 		Statement: edocuenta.Statement{
 			Bank:          edocuenta.BankBBVA,
 			AccountNumber: account,
-			Currency:      parseCurrency(text),
+			Currency:      parseStatementCurrency(text),
 			PeriodStart:   periodStart,
 			PeriodEnd:     periodEnd,
 			AccountClass:  edocuenta.AccountClassAsset,
@@ -186,8 +186,28 @@ func parsePeriod(text string) (time.Time, time.Time, error) {
 	return time.Time{}, time.Time{}, fmt.Errorf("bbva: period not found")
 }
 
-func parseCurrency(text string) edocuenta.Currency {
+func parseStatementCurrency(text string) edocuenta.Currency {
+	return matchBBVAStatementCurrency(bbvaStatementHeaderSection(text))
+}
+
+func bbvaStatementHeaderSection(text string) string {
 	upper := strings.ToUpper(text)
+	headerCutoff := len(text)
+	for _, marker := range []string{
+		"DETALLE DE MOVIMIENTOS REALIZADOS",
+		"DETALLE DE MOVIMIENTOS",
+		"TOTAL DE MOVIMIENTOS",
+	} {
+		index := strings.Index(upper, marker)
+		if index >= 0 && index < headerCutoff {
+			headerCutoff = index
+		}
+	}
+	return text[:headerCutoff]
+}
+
+func matchBBVAStatementCurrency(headerText string) edocuenta.Currency {
+	upper := strings.ToUpper(headerText)
 	switch {
 	case strings.Contains(upper, "MONEDA DOLARES"),
 		strings.Contains(upper, "MONEDA DÓLARES"),
@@ -235,7 +255,7 @@ func bbvaDetectionScore(text string) int {
 	if realTxStartPattern.MatchString(text) || hasLegacyTransactions(text) {
 		score += 2
 	}
-	if parseCurrency(text) == edocuenta.CurrencyUSD {
+	if parseStatementCurrency(text) == edocuenta.CurrencyUSD {
 		score++
 	}
 

@@ -2,6 +2,7 @@
 
 ## Sin Publicar
 
+- Se corrigió la detección de moneda en estados BBVA para usar solo el encabezado del estado y evitar falsos positivos de glosarios como `CUENTA EN DOLARES`.
 - Limpieza incompatible de la API: se renombró `Transaction.Kind` a `Transaction.Direction` y `TransactionKind` a `TransactionDirection`.
 - Se agregó `Statement.AccountClass` con terminología contable (`asset` / `liability`).
 - Se agregó metadata pública opcional en `Statement.Summary` para layouts bancarios soportados.
